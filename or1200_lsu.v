@@ -142,6 +142,7 @@ end
 //
 // Precalculate part of load/store EA in ID stage
 //
+
 assign id_precalc_sum = id_addrbase[`OR1200_LSUEA_PRECALC-1:0] +
                         id_addrofs[`OR1200_LSUEA_PRECALC-1:0];
 

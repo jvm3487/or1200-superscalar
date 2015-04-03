@@ -96,8 +96,8 @@ input	[aw-1:0]		addr;
 input				en;
 input				we;
 input	[dw-1:0]		datain;
-output				tag_v;
-output	[dw-2:0]		tag;
+output	[1:0]			tag_v; //modified twice as much
+output	[(dw*2)-3:0]		tag; // modified twice as much
 
 `ifdef OR1200_NO_IC
 
@@ -115,10 +115,10 @@ assign mbist_so_o = mbist_si_i;
 //
 // Instantiation of TAG RAM block
 //
-   or1200_spram #
+   or1200_spram_modified64 #
      (
       .aw(`OR1200_ICTAG),
-      .dw(`OR1200_ICTAG_W)
+      .dw(`OR1200_ICTAG_W*2)
       )
    ic_tag0
      (
@@ -134,7 +134,7 @@ assign mbist_so_o = mbist_si_i;
       //.oe(1'b1),
       .addr(addr),
       .di(datain),
-      .doq({tag, tag_v})
+      .doq({tag[(dw*2)-3:(dw-1)], tag_v[1], tag[(dw-2):0], tag_v[0]}) //modified for two seperate tag compares
       );   
 `endif
 

@@ -60,10 +60,13 @@ module or1200_rf(
 	cy_we_i, cy_we_o, supv, wb_freeze, addrw, dataw, we, flushpipe,
 
 	// Read i/f
-	id_freeze, addra, addrb, dataa, datab, rda, rdb,
+	id_freeze, addra, addrb, addrc, addrd, dataa, datab, datac, datad, rda, rdb, rdc, rdd,
 
 	// Debug
-	spr_cs, spr_write, spr_addr, spr_dat_i, spr_dat_o, du_read
+	spr_cs, spr_write, spr_addr, spr_dat_i, spr_dat_o, du_read,
+
+	//Needed for test of two insn
+	half_insn_done_i
 );
 
 parameter dw = `OR1200_OPERAND_WIDTH;
@@ -97,10 +100,17 @@ input				flushpipe;
 input				id_freeze;
 input	[aw-1:0]		addra;
 input	[aw-1:0]		addrb;
+input   [aw-1:0] 		addrc; //added for two insns
+input   [aw-1:0] 		addrd; //added for two insns
 output	[dw-1:0]		dataa;
 output	[dw-1:0]		datab;
+output	[dw-1:0]		datac;
+output	[dw-1:0]		datad;
 input				rda;
 input				rdb;
+input    			rdc; //added for two insns
+input 	        		rdd; //added for two insns
+   
 
 //
 // SPR access for debugging purposes
@@ -111,21 +121,31 @@ input	[31:0]			spr_addr;
 input	[31:0]			spr_dat_i;
 output	[31:0]			spr_dat_o;
 input    			du_read;
+input 	         		half_insn_done_i;
+   
    
 //
 // Internal wires and regs
 //
 wire	[dw-1:0]		from_rfa;
 wire	[dw-1:0]		from_rfb;
+wire    [dw-1:0] 		from_rfc; //added for two insns
+wire    [dw-1:0] 		from_rfd; //added for two insns		
 wire	[aw-1:0]		rf_addra;
+wire	[aw-1:0]		rf_addrc;
 wire	[aw-1:0]		rf_addrw;
 wire	[dw-1:0]		rf_dataw;
 wire				rf_we;
 wire				spr_valid;
 wire				rf_ena;
-wire				rf_enb;
+wire				rf_enb; 		
+wire 			        rf_enc; //added for two insns
+wire 		                rf_end; //added for two insns	
 reg				rf_we_allow;
- 				
+wire 				half_insn_done_next;
+reg [dw-1:0]     		from_rfc_next;
+reg [dw-1:0] 		        from_rfd_next;
+				
    
    // Logic to restore output on RFA after debug unit has read out via SPR if.
    // Problem was that the incorrect output would be on RFA after debug unit
@@ -141,8 +161,19 @@ reg				rf_we_allow;
    // Track RF A's address each time it's enabled
    reg	[aw-1:0]		addra_last;
 
+   //this is needed because half_ins_done (same thing with from_rfc_next) refers to the id stage and the other half of the insn is currently in the if stage
+   /*always @(posedge clk)
+     if (!id_freeze) //!id_freeze is needed in case a jump occurs in the second half of an insn so that the correct registers are selected depending on what half of the insn id_insn is in - probably can be removed after testing
+       half_insn_done_next <= half_insn_done_i;*/
+   //registered it in ctrl so no need to do it again
+   //assign half_insn_done_next = half_insn_done_i;
+     
+   /*always @(posedge clk) begin
+      from_rfc_next <= from_rfc;
+      from_rfd_next <= from_rfd;
+   end*/  
    always @(posedge clk)
-     if (rf_ena & !(spr_cs_fe | (du_read & spr_cs)))
+     if (((rf_ena /*& !half_insn_done_next*/) | (rf_enc /*& half_insn_done_next*/)) & !(spr_cs_fe | (du_read & spr_cs)))
        addra_last <= addra;
 
    always @(posedge clk)
@@ -158,26 +189,36 @@ reg				rf_we_allow;
 assign spr_valid = spr_cs & (spr_addr[10:5] == `OR1200_SPR_RF);
 
 //
-// SPR data output is always from RF A
+// SPR data output is always from RF A - unless you do two insns and then maybe not
 //
-assign spr_dat_o = from_rfa;
+assign spr_dat_o = /*half_insn_done_next ? from_rfc_next :*/ from_rfa;
 
 //
-// Operand A comes from RF or from saved A register
+// Operand A comes from RF or from saved A register - unless two insns
 //
-assign dataa = from_rfa;
+assign dataa = /*half_insn_done_next ? from_rfc_next :*/ from_rfa;
 
 //
 // Operand B comes from RF or from saved B register
 //
-assign datab = from_rfb;
+assign datab = /*half_insn_done_next ? from_rfd_next :*/ from_rfb;
 
+assign datac = from_rfc;   
+
+assign datad = from_rfd;
+
+   
 //
 // RF A read address is either from SPRS or normal from CPU control
 //
 assign rf_addra = (spr_valid & !spr_write) ? spr_addr[4:0] : 
 		  spr_cs_fe ? addra_last : addra;
 
+//similar format for two insns
+assign rf_addrc = /*(spr_valid & !spr_write) ? spr_addr[4:0] : 
+		  spr_cs_fe ? addra_last : */addrc;
+
+  
 //
 // RF write address is either from SPRS or normal from CPU control
 //
@@ -213,8 +254,13 @@ assign rf_ena = (rda & ~id_freeze) | (spr_valid & !spr_write) | spr_cs_fe;
 //
 assign rf_enb = rdb & ~id_freeze;
 
+//added for two insns - similar format as the original
+assign rf_enc = (rdc & ~id_freeze) | (spr_valid & !spr_write) | spr_cs_fe;
+assign rf_end = rdd & ~id_freeze;
+   
+   
+   
 `ifdef OR1200_RFRAM_TWOPORT
-
 //
 // Instantiation of register file two-port RAM A
 //
@@ -266,7 +312,8 @@ or1200_tpram_32x32 rf_b(
 );
 
 `else
-
+//The following is the option that seems to be enabled
+//Just enabled two more registers based on this
 `ifdef OR1200_RFRAM_DUALPORT
 
 //
@@ -316,7 +363,49 @@ or1200_tpram_32x32 rf_b(
       .addr_b(rf_addrw),
       .di_b(rf_dataw)
       );
-   
+//For second instruction
+   or1200_dpram #
+     (
+      .aw(5),
+      .dw(32)
+      )
+   rf_c
+     (
+      // Port A
+      .clk_a(clk),
+      .ce_a(rf_enc),
+      .addr_a(rf_addrc),
+      .do_a(from_rfc),
+      
+      // Port B
+      .clk_b(clk),
+      .ce_b(rf_we),
+      .we_b(rf_we),
+      .addr_b(rf_addrw),
+      .di_b(rf_dataw)
+      );
+
+//For second instruction
+   or1200_dpram #
+     (
+      .aw(5),
+      .dw(32)
+      )
+   rf_d
+     (
+      // Port A
+      .clk_a(clk),
+      .ce_a(rf_end),
+      .addr_a(addrd),
+      .do_a(from_rfd),
+      
+      // Port B
+      .clk_b(clk),
+      .ce_b(rf_we),
+      .we_b(rf_we),
+      .addr_b(rf_addrw),
+      .di_b(rf_dataw)
+      );
 `else
 
 `ifdef OR1200_RFRAM_GENERIC

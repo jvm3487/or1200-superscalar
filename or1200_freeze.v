@@ -72,7 +72,7 @@ module or1200_freeze
    force_dslot_fetch, abort_ex,
    genpc_freeze, if_freeze, id_freeze, ex_freeze, wb_freeze, saving_if_insn,
    fpu_done, mtspr_done,
-   icpu_ack_i, icpu_err_i
+   icpu_ack_i, icpu_err_i, half_insn_done
    );
 
 //
@@ -101,6 +101,8 @@ input   			fpu_done;
 input   			mtspr_done;   
 input				icpu_ack_i;
 input				icpu_err_i;
+input 			        half_insn_done;
+			
 
 //
 // Internal wires and regs
@@ -129,8 +131,10 @@ reg [`OR1200_WAIT_ON_WIDTH-1:0]	waiting_on;
 assign genpc_freeze = (du_stall & !saving_if_insn) | flushpipe_r;
 assign if_freeze = id_freeze | extend_flush;
 
+//half insn done was added to handle the possibility that instructions are going through
+//one at a time in the execution phase due to data dependency or special instructions with only one structure (i.e. fpu)
 assign id_freeze = (lsu_stall | (~lsu_unstall & if_stall) | multicycle_freeze 
-		    | (|waiting_on) | force_dslot_fetch) | du_stall;
+		    | (|waiting_on) | force_dslot_fetch) | du_stall | half_insn_done;
 assign ex_freeze = wb_freeze;
 
 assign wb_freeze = (lsu_stall | (~lsu_unstall & if_stall) | multicycle_freeze 

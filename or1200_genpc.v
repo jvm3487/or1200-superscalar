@@ -61,7 +61,7 @@ module or1200_genpc(
 
 	// Internal i/f
 	pre_branch_op, branch_op, except_type, except_prefix,
-	id_branch_addrtarget, ex_branch_addrtarget, muxed_b, operand_b, 
+	/*id_branch_addrtarget,*/ ex_branch_addrtarget, muxed_b, operand_b, 
 	flag, flagforw, ex_branch_taken, except_start,
 	epcr, spr_dat_i, spr_pc_we, genpc_refetch,
 	genpc_freeze, no_more_dslot, lsu_stall
@@ -94,7 +94,7 @@ input   [`OR1200_BRANCHOP_WIDTH-1:0]    pre_branch_op;
 input	[`OR1200_BRANCHOP_WIDTH-1:0]	branch_op;
 input	[`OR1200_EXCEPT_WIDTH-1:0]	except_type;
 input					except_prefix;
-input	[31:2]			id_branch_addrtarget;
+//This signal does nothing! input	[31:2]			id_branch_addrtarget;
 input	[31:2]			ex_branch_addrtarget;
 input	[31:0]			muxed_b;
 input	[31:0]			operand_b;
@@ -109,7 +109,8 @@ input				genpc_refetch;
 input				genpc_freeze;
 input				no_more_dslot;
 input				lsu_stall;
-
+		
+   
 parameter boot_adr = `OR1200_BOOT_ADR;
 //
 // Internal wires and regs
@@ -288,8 +289,14 @@ reg				wait_lsu;
      else if (spr_pc_we) begin
 	pcreg_default <=  spr_dat_i[31:2];
      end
-     else if (no_more_dslot | except_start | !genpc_freeze & !icpu_rty_i 
-	      & !genpc_refetch) begin
+   //it appears that icpu_rty_i going low is the main reason the pc increments since the other four signals are generally low
+   //tracing the signal back through a bunch of modules suggests during normal operations that icqmem_rty_o in the ic_top.v is the same signal (while under normal/not error conditions is the opposite of icqmem_ack_o in that same file
+   //although genpc_refetch seems to go high two cycles before branch operations - it looks to keep the program counter from incrememnting while if_freeze is asserted
+   //genpc_freeze does not seem to be utlized very often/if at all - mostly low
+   //as far as i can tell no_more_dslot is completely useless in the below statement except to make the least significant bit one
+   //in the above icpu_adr_o address calculation (no_more_dslot seems to be high for all branch operations) - this causes if_bypass to go high in the if.v file iff if_bypass_reg or if_flushpipe is also high
+   //commenting the signal out still causes the processor to pass all tests in simulation so more than likely this is unnecessary
+     else if (no_more_dslot | except_start | !genpc_freeze & !icpu_rty_i & !genpc_refetch) begin
 	pcreg_default <=  pc[31:2];
      end
 
