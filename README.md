@@ -1,8 +1,7 @@
 # or1200-superscalar
-The goal of this project is to make the existing or1200 core superscalar (2/3 complete)
+The goal of this project is to make the existing or1200 core superscalar (near completition of first draft)
 
-Currently, the processor has the ability to fetch and decode two insns but is only executing them one at a time.
-This is becasue the addition is being built starting at the beginning of the pipeline.
+Currently, the processor has the ability to execute two insns at a time but does not handle sprs/exceptions.  It also is currently inserting a nop after executing two insns at a time bc genpc.v has not been updated to account for differing changes in number of instructions being executed.
 
 Current changes include:
 - Modify instruction cache to contain 64 bits per block (2 instructions)
@@ -14,3 +13,8 @@ Current changes include:
 - Add two additional copies of register files to be able to read registers for two instructions at end of if stage
 - Add logic to save state of second instruction if half of an instruction is finished executing due to one wide execute
 - Change freeze logic to account for a 2 fetch instruction being half complete
+- Add 2nd ALU
+- Add 2nd wbmux
+- Add carry, overflow, flag logic
+- Add 2nd write port on registers
+- Add 5th test register for or1200_monitor.v
