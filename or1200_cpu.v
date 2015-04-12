@@ -128,7 +128,7 @@ output				immu_en;
 output                          id_void;
 output	[63:0]			id_insn;
 output                          ex_void;
-output	[31:0]			ex_insn;
+output	[63:0]			ex_insn;
 output				ex_freeze;
 output	[31:0]			wb_insn;
 output				wb_freeze;
@@ -214,6 +214,7 @@ wire	[63:0]			if_insn; //twice as wide for two insns
 wire				saving_if_insn;
 wire	[31:0]			if_pc;
 wire	[aw-1:0]		rf_addrw;
+wire	[aw-1:0]		rf_addrwc;
 wire	[aw-1:0] 		rf_addra;
 wire	[aw-1:0] 		rf_addrb;
 wire    [aw-1:0] 		rf_addrc; //added for the second set of registers
@@ -228,7 +229,10 @@ wire    [dw-1:0] 		id_simmc;
 wire	[dw-1:2]		ex_branch_addrtarget;
 wire	[`OR1200_ALUOP_WIDTH-1:0]	alu_op;
 wire	[`OR1200_ALUOP2_WIDTH-1:0]	alu_op2;
+wire	[`OR1200_ALUOP_WIDTH-1:0]	alu_opc;
+wire	[`OR1200_ALUOP2_WIDTH-1:0]	alu_op2c;   
 wire	[`OR1200_COMPOP_WIDTH-1:0]	comp_op;
+wire	[`OR1200_COMPOP_WIDTH-1:0]	comp_opc;
 wire	[`OR1200_BRANCHOP_WIDTH-1:0]	pre_branch_op;
 wire	[`OR1200_BRANCHOP_WIDTH-1:0]	branch_op;
 wire	[`OR1200_LSUOP_WIDTH-1:0]	id_lsu_op;
@@ -237,13 +241,15 @@ wire				if_freeze;
 wire				id_freeze;
 wire				ex_freeze;
 wire				wb_freeze;
-wire	[`OR1200_SEL_WIDTH-1:0]	sel_a;
-wire	[`OR1200_SEL_WIDTH-1:0]	sel_b;
-wire	[`OR1200_SEL_WIDTH-1:0]	sel_c;
-wire	[`OR1200_SEL_WIDTH-1:0]	sel_d;
+wire	[`OR1200_SEL_WIDTH:0]	sel_a; //modified to add one bit to have more options
+wire	[`OR1200_SEL_WIDTH:0]	sel_b;
+wire	[`OR1200_SEL_WIDTH:0]	sel_c;
+wire	[`OR1200_SEL_WIDTH:0]	sel_d;
 wire	[`OR1200_RFWBOP_WIDTH-1:0]	rfwb_op;
+wire	[`OR1200_RFWBOP_WIDTH-1:0]	rfwb_opc;
 wire    [`OR1200_FPUOP_WIDTH-1:0]       fpu_op;
 wire	[dw-1:0]		rf_dataw;
+wire	[dw-1:0]		rf_datawc;   
 wire	[dw-1:0]		rf_dataa;
 wire	[dw-1:0]		rf_datab;
 wire    [dw-1:0] 		rf_datac;
@@ -253,16 +259,18 @@ wire	[dw-1:0]		muxed_b;
 wire	[dw-1:0]		muxed_c;
 wire	[dw-1:0]		muxed_d;
 wire	[dw-1:0]		wb_forw;
+wire	[dw-1:0]		wb_forwc;
 wire				wbforw_valid;
 reg	[dw-1:0]		operand_a;
 reg	[dw-1:0]		operand_b;
-wire	[dw-1:0]		operand_aa;
-wire	[dw-1:0]		operand_ba;   
+wire	[dw-1:0]		operand_a_inter;
+wire	[dw-1:0]		operand_b_inter;   
 wire	[dw-1:0]		operand_c;
 wire	[dw-1:0]		operand_d;
 reg	[dw-1:0]		operand_c_next;
 reg	[dw-1:0]		operand_d_next;
 wire	[dw-1:0]		alu_dataout;
+wire	[dw-1:0]		alu_dataoutc;
 wire	[dw-1:0]		lsu_dataout;
 wire	[dw-1:0]		sprs_dataout;
 wire	[dw-1:0]		fpu_dataout;
@@ -273,6 +281,8 @@ wire    [`OR1200_WAIT_ON_WIDTH-1:0]	wait_on;
 wire	[`OR1200_EXCEPT_WIDTH-1:0]	except_type;
 wire	[4:0]			cust5_op;
 wire	[5:0]			cust5_limm;
+wire	[4:0]			cust5_opc;
+wire	[5:0]			cust5_limmc;   
 wire				if_flushpipe;
 wire				id_flushpipe;
 wire				ex_flushpipe;
@@ -280,17 +290,29 @@ wire				wb_flushpipe;
 wire				extend_flush;
 wire				ex_branch_taken;
 wire				flag;
+wire     			flagc;		
 wire				flagforw;
 wire				flag_we;
 wire				flagforw_alu;   
 wire				flag_we_alu;
+wire				flagforw_aluc;   
+wire				flag_we_aluc;
 wire				flagforw_fpu;
 wire				flag_we_fpu;
 wire				carry;
+wire				carryc;
 wire				cyforw;
 wire				cy_we_alu;
+wire				cyforwa;
+wire				cy_we_alua;
+wire				cyforwc;
+wire				cy_we_aluc;   
 wire				ovforw;
 wire				ov_we_alu;
+wire				ovforwa;
+wire				ov_we_alua;
+wire				ovforwc;
+wire				ov_we_aluc;   
 wire				ovforw_mult_mac;
 wire				ov_we_mult_mac;   
 wire				cy_we_rf;
@@ -351,10 +373,14 @@ wire				except_ibuserr;
 wire				except_dbuserr;
 wire				abort_ex;
 wire				abort_mvspr;
+wire     			ex_two_insns;
+			
 //The below signal was only used for testing
 wire 			half_insn_done;
 wire 		half_insn_done_next;
-		
+wire [1:0] 	data_dependent;
+reg  [1:0] 	data_dependent_next;   
+reg  [1:0] 	data_dependent_next_next;		
  			
    
 //
@@ -415,11 +441,6 @@ assign immu_en = sr[`OR1200_SR_IME] & ~except_started;
 //
 assign supv = sr[`OR1200_SR_SM];
 
-//
-// FLAG write enable
-//
-assign flagforw = (flag_we_alu & flagforw_alu) | (flagforw_fpu & flag_we_fpu);
-assign flag_we = (flag_we_alu | flag_we_fpu) & ~abort_mvspr;
 
 //
 // Flag for any MTSPR instructions, that must block execution, to indicate done
@@ -455,7 +476,7 @@ or1200_genpc #(.boot_adr(boot_adr)) or1200_genpc(
 	.muxed_b(muxed_b),
 	.operand_b(operand_b),
 	.flag(flag),
-	.flagforw(flagforw),
+	.flagforw(flagforwa),
 	.ex_branch_taken(ex_branch_taken),
 	.epcr(epcr),
 	.spr_dat_i(spr_dat_cpu),
@@ -463,7 +484,8 @@ or1200_genpc #(.boot_adr(boot_adr)) or1200_genpc(
 	.genpc_refetch(genpc_refetch),
 	.genpc_freeze(genpc_freeze),
 	.no_more_dslot(no_more_dslot),
-	.lsu_stall(lsu_stall)
+	.lsu_stall(lsu_stall),
+	.ex_two_insns(ex_two_insns)			 
 );
 
 //
@@ -522,11 +544,16 @@ or1200_ctrl or1200_ctrl(
 	.rf_rdc(rf_rdc),
 	.rf_rdd(rf_rdd),
 	.alu_op(alu_op),
-	.alu_op2(alu_op2),			
+	.alu_op2(alu_op2),
+	.alu_opc_out(alu_opc),
+	.alu_op2c(alu_op2c),			
 	.mac_op(mac_op),
 	.comp_op(comp_op),
+	.comp_opc(comp_opc),
 	.rf_addrw(rf_addrw),
+	.rf_addrw2(rf_addrwc),
 	.rfwb_op(rfwb_op),
+	.rfwb_op2(rfwb_opc),
 	.fpu_op(fpu_op),			
 	.pc_we(pc_we),
 	.wb_insn(wb_insn),
@@ -535,6 +562,8 @@ or1200_ctrl or1200_ctrl(
 	//.id_branch_addrtarget(id_branch_addrtarget),
 	.ex_branch_addrtarget(ex_branch_addrtarget),
 	.ex_simm(ex_simm),
+	.ex_two_insns(ex_two_insns),
+	.abort_ex(abort_ex),
 	.sel_a(sel_a),
 	.sel_b(sel_b),
 	.sel_c(sel_c),
@@ -542,11 +571,14 @@ or1200_ctrl or1200_ctrl(
 	.id_lsu_op(id_lsu_op),
 	.cust5_op(cust5_op),
 	.cust5_limm(cust5_limm),
+	.cust5_opc(cust5_opc),
+	.cust5_limmc(cust5_limmc),
 	.id_pc(id_pc),
 	.ex_pc(ex_pc),
 	.multicycle(multicycle),
         .wait_on(wait_on),			
 	.wbforw_valid(wbforw_valid),
+	.wbforw_valid2(wbforw_validc),		
 	.sig_syscall(sig_syscall),
 	.sig_trap(sig_trap),
 	.force_dslot_fetch(force_dslot_fetch),
@@ -562,7 +594,8 @@ or1200_ctrl or1200_ctrl(
 	.du_hwbkpt(du_hwbkpt),
 	.except_illegal(except_illegal),
 	.dc_no_writethrough(dc_no_writethrough),
-	.half_insn_done_o(half_insn_done),
+	.data_dependent(data_dependent),
+        .half_insn_done_o(half_insn_done),
 	.half_insn_done_next_o(half_insn_done_next)		
 );
 
@@ -577,9 +610,12 @@ or1200_rf or1200_rf(
 	.supv(sr[`OR1200_SR_SM]),
 	.wb_freeze(wb_freeze),
 	.addrw(rf_addrw),
+	.addrw2(rf_addrwc),
 	.dataw(rf_dataw),
+	.dataw2(rf_datawc),
 	.id_freeze(id_freeze),
 	.we(rfwb_op[0]),
+	.we2(rfwb_opc[0]),
 	.flushpipe(wb_flushpipe),
 	.addra(rf_addra),
 	.rda(rf_rda),
@@ -606,7 +642,7 @@ or1200_rf or1200_rf(
 // Instantiation of operand muxes - doubled for two insns
 //
 // The logic below chooses between the two insns
-always @(posedge clk or `OR1200_RST_EVENT rst) begin
+/*always @(posedge clk or `OR1200_RST_EVENT rst) begin
   if ((rst == `OR1200_RST_VALUE) | id_flushpipe) begin
      operand_d_next <= 32'b0;
      operand_c_next <= 32'b0; 
@@ -626,7 +662,7 @@ always @(*) begin
       operand_a <= operand_aa;
       operand_b <= operand_ba;
    end
-end
+end*/
 
 or1200_operandmuxes or1200_operandmuxes1(
 	.clk(clk),
@@ -636,16 +672,53 @@ or1200_operandmuxes or1200_operandmuxes1(
 	.rf_dataa(rf_dataa),
 	.rf_datab(rf_datab),
 	.ex_forw(rf_dataw),
+	.ex_forw2(rf_datawc),
 	.wb_forw(wb_forw),
+	.wb_forw2(wb_forwc),
 	.simm(id_simma),
 	.sel_a(sel_a),
 	.sel_b(sel_b),
-	.operand_a(operand_aa), //synchronous
-	.operand_b(operand_ba), //sync
+	.operand_a(operand_a_inter), //synchronous
+	.operand_b(operand_b_inter), //sync
 	.muxed_a(muxed_a),
 	.muxed_b(muxed_b)
 );
 
+//data dependency mux in the event that insns in the same stage depend on each other 
+always @(posedge clk or `OR1200_RST_EVENT rst) begin
+  if ((rst == `OR1200_RST_VALUE) | id_flushpipe) begin
+     operand_c_next <= 32'h0;
+     operand_d_next <= 32'h0;
+     data_dependent_next <= 2'd0;
+     data_dependent_next_next <= 2'd0;
+  end
+  else if (!ex_freeze) begin
+     operand_c_next <= operand_c;
+     operand_d_next <= operand_d;
+     data_dependent_next <= data_dependent;
+     data_dependent_next_next <= data_dependent_next;
+  end
+end
+
+always @(*) begin
+   if (!half_insn_done_next) begin
+      operand_a <= operand_a_inter;
+      operand_b <= operand_b_inter;
+   end
+   else if (data_dependent_next_next == 2'd1) begin
+      operand_a <= wb_forw;
+      operand_b <= operand_d_next;
+   end
+   else if (data_dependent_next_next == 2'd2) begin
+      operand_a <= operand_c_next;
+      operand_b <= wb_forw;
+   end
+   else begin
+      operand_a <= operand_c_next;
+      operand_b <= operand_d_next;
+   end
+end
+   
 or1200_operandmuxes or1200_operandmuxes2(
 	.clk(clk),
 	.rst(rst),
@@ -654,18 +727,20 @@ or1200_operandmuxes or1200_operandmuxes2(
 	.rf_dataa(rf_datac),
 	.rf_datab(rf_datad),
 	.ex_forw(rf_dataw),
+	.ex_forw2(rf_datawc),
 	.wb_forw(wb_forw),
+	.wb_forw2(wb_forwc),
 	.simm(id_simmc),
 	.sel_a(sel_c),
 	.sel_b(sel_d),
 	.operand_a(operand_c),
 	.operand_b(operand_d),
 	.muxed_a(muxed_c),
-	.muxed_b(muxed_d)
+	.muxed_b(muxed_d)					 
 );
 
 //
-// Instantiation of CPU's ALU
+// Instantiation of CPU's ALU - two for two insns
 //
 or1200_alu or1200_alu(
 	.a(operand_a),
@@ -674,18 +749,58 @@ or1200_alu or1200_alu(
 	.macrc_op(ex_macrc_op),
 	.alu_op(alu_op),
 	.alu_op2(alu_op2),		      
-	.comp_op(comp_op),
+ 	.comp_op(comp_op),
 	.cust5_op(cust5_op),
 	.cust5_limm(cust5_limm),
 	.result(alu_dataout),
 	.flagforw(flagforw_alu),
 	.flag_we(flag_we_alu),
-	.cyforw(cyforw),
-	.cy_we(cy_we_alu),
-	.ovforw(ovforw),
-	.ov_we(ov_we_alu),		      
+	.cyforw(cyforwa),
+	.cy_we(cy_we_alua),
+	.ovforw(ovforwa),
+	.ov_we(ov_we_alua),		      
 	.flag(flag),
 	.carry(carry)
+);
+
+//
+// FLAG write enable
+//
+//This is needed for a branch which should not be affected by second instruction
+assign flagforwa = (flag_we_alu & flagforw_alu) | (flagforw_fpu & flag_we_fpu);
+
+//second write dominates if second ALU instruction is valid
+assign flagforw = flag_we_aluc ? flagforw_aluc : (flag_we_alu & flagforw_alu) | (flagforw_fpu & flag_we_fpu);  
+assign flag_we = (flag_we_alu | flag_we_fpu | flag_we_aluc) & ~abort_mvspr;
+
+assign ovforw = ov_we_aluc ? ovforwc : ovforwa;
+assign ov_we_alu = ov_we_alua | ov_we_aluc;
+assign cyforw = cy_we_aluc ? cyforwc : cyforwa;
+assign cy_we_alu = cy_we_alua | cy_we_aluc;   
+   
+//This is needed from the previous instruction   
+assign flagc = flag_we_alu ? flagforw_alu : flag;
+assign carryc = cy_we_alua ? cyforw : carry;  
+   
+or1200_alu or1200_alu2(
+	.a(operand_c),
+	.b(operand_d),
+	.mult_mac_result(mult_mac_result),
+	.macrc_op(ex_macrc_op),
+	.alu_op(alu_opc),
+	.alu_op2(alu_op2c),		      
+ 	.comp_op(comp_opc),
+	.cust5_op(cust5_opc),
+	.cust5_limm(cust5_limmc),
+	.result(alu_dataoutc),
+	.flagforw(flagforw_aluc),
+	.flag_we(flag_we_aluc),
+	.cyforw(cyforwc),
+	.cy_we(cy_we_aluc),
+	.ovforw(ovforwc),
+	.ov_we(ov_we_aluc),		      
+	.flag(flagc),
+	.carry(carryc)
 );
 
    
@@ -862,6 +977,20 @@ or1200_wbmux or1200_wbmux(
 	.muxreg_valid(wbforw_valid)
 );
 
+or1200_wbmux or1200_wbmux2(
+	.clk(clk),
+	.rst(rst),
+	.wb_freeze(wb_freeze),
+	.rfwb_op(rfwb_opc),
+	.muxin_a(alu_dataoutc),
+	.muxin_b(lsu_dataout),
+	.muxin_c(sprs_dataout),
+	.muxin_d(ex_pc),
+        .muxin_e(fpu_dataout),
+	.muxout(rf_datawc),
+	.muxreg(wb_forwc),
+	.muxreg_valid(wbforw_validc)
+);   
 //
 // Instantiation of freeze logic
 //

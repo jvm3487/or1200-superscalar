@@ -398,7 +398,7 @@ wire			wb_freeze;
 wire			id_void;
 wire			ex_void;
 wire	[63:0]		id_insn; //modified for two insns - this wire goes nowhere so I'm not sure why its here
-wire	[31:0]		ex_insn;
+wire	[63:0]		ex_insn;
 wire	[31:0]		wb_insn;
 wire	[31:0]		id_pc;
 wire	[31:0]		ex_pc;

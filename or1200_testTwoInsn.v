@@ -57,7 +57,7 @@
 // synopsys translate_on
 `include "or1200_defines.v"
 
-module or1200_dpram
+module or1200_testTwoInsn
   (
    // Generic synchronous double-port RAM interface
    clk_a, rst, ce_a, addr_a, do_a,
@@ -98,9 +98,12 @@ module or1200_dpram
    //
    // Generic RAM's registers and wires
    //
-   reg [dw-1:0] 		mem [(1<<aw)-1:0] /*synthesis syn_ramstyle = "no_rw_check"*/;	// RAM content
+   reg [dw-1:0] 		mem_inter [(1<<aw)-1:0] /*synthesis syn_ramstyle = "no_rw_check"*/;	// RAM content
+   reg [dw-1:0] 		mem_inter_next [(1<<aw)-1:0] /*synthesis syn_ramstyle = "no_rw_check"*/;	// RAM content
+   reg [dw-1:0] 		mem [(1<<aw)-1:0];
    reg [aw-1:0] 		addr_a_reg;		// RAM address registered
-
+   reg [5:0] 			i;
+   
 
    // Function to access GPRs (for use by Verilator). No need to hide this one
    // from the simulator, since it has an input (as required by IEEE 1364-2001).
@@ -108,7 +111,7 @@ module or1200_dpram
       // verilator public
       input [aw-1:0] 		gpr_no;
 
-      get_gpr = mem[gpr_no];
+      get_gpr = mem_inter_next [gpr_no];
       
    endfunction // get_gpr
 
@@ -128,6 +131,7 @@ module or1200_dpram
    //assign do_a = (oe_a) ? mem[addr_a_reg] : {dw{1'b0}};
    assign do_a = mem[addr_a_reg];
    
+   
    //
    // RAM read
    //
@@ -144,7 +148,20 @@ module or1200_dpram
       if (we_c)
 	mem[addr_c] <= di_c;
       if (ce_b & we_b & (!we_c | (addr_c != addr_b))) //second part of logic is needed in case writing to same register
-	mem[addr_b] <=  di_b;
-   end   
+	mem[addr_b] <=  mem_inter[addr_b];
+      for (i = 0; i < 32; i = i +1) begin
+	 mem_inter_next[i] <= mem_inter[i];
+      end
+   end
+
+   //used for simulator
+   always @(negedge clk_b) begin
+      for (i = 0; i < 32; i = i +1) begin
+	 if (ce_b & we_b & (i == addr_b)) //second part of logic is needed in case writing to same register
+	   mem_inter[i] <= di_b;
+	 else
+	   mem_inter[i] <= mem[i];
+      end
+   end      
    
 endmodule // or1200_dpram

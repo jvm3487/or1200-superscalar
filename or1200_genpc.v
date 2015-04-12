@@ -64,7 +64,7 @@ module or1200_genpc(
 	/*id_branch_addrtarget,*/ ex_branch_addrtarget, muxed_b, operand_b, 
 	flag, flagforw, ex_branch_taken, except_start,
 	epcr, spr_dat_i, spr_pc_we, genpc_refetch,
-	genpc_freeze, no_more_dslot, lsu_stall
+	genpc_freeze, no_more_dslot, lsu_stall, ex_two_insns
 );
 
 //
@@ -109,7 +109,8 @@ input				genpc_refetch;
 input				genpc_freeze;
 input				no_more_dslot;
 input				lsu_stall;
-		
+input   			ex_two_insns;
+			
    
 parameter boot_adr = `OR1200_BOOT_ADR;
 //
@@ -170,7 +171,10 @@ reg				wait_lsu;
      begin
 	casez ({spr_pc_we, except_start, branch_op}) // synopsys parallel_case
 	  {2'b00, `OR1200_BRANCHOP_NOP}: begin
-	     pc = {pcreg + 30'd1, 2'b0};
+	     //if (!ex_two_insns) 
+	       pc = {pcreg + 30'd1, 2'b0};
+	     //else
+	       //pc = {pcreg + 30'd2, 2'b0};
 	     ex_branch_taken = 1'b0;
 	  end
 	  {2'b00, `OR1200_BRANCHOP_J}: begin

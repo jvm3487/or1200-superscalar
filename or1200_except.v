@@ -113,6 +113,7 @@ input	[31:0]		if_pc;
 output	[31:0]		id_pc;
 output  [31:0]      ex_pc;
 output  [31:0]      wb_pc;
+reg  [31:0]      wb_pc2; //for testing   
 input	[31:0]		datain;
 input   [`OR1200_DU_DSR_WIDTH-1:0]     du_dsr;
 input   [24:0]                       du_dmr1;
@@ -227,7 +228,7 @@ assign abort_ex = sig_dbuserr | sig_dmmufault | sig_dtlbmiss | sig_align |
 // abort spr read/writes   
 assign abort_mvspr  = sig_illegal | ((du_hwbkpt | trace_trap) & ex_pc_val 
 				     & !sr_ted & !dsr_te) ; 
-assign spr_dat_ppc = wb_pc;
+assign spr_dat_ppc = wb_pc;   
    
 assign spr_dat_npc = ex_void ? id_pc : ex_pc;
 
@@ -434,12 +435,15 @@ end
 //
 always @(posedge clk or `OR1200_RST_EVENT rst) begin
 	if (rst == `OR1200_RST_VALUE) begin
-		wb_pc <=  32'd0;
-        dl_pc <=  32'd0;
+	   wb_pc <=  32'd0;
+	   //for testing
+	   wb_pc2 <= 32'd0;
+           dl_pc <=  32'd0;
 	end
 	else if (!wb_freeze) begin
-		wb_pc <=  ex_pc;
-        dl_pc <=  wb_pc;
+	   wb_pc <=  ex_pc;
+	   wb_pc2 <= ex_pc + 32'h4;
+           dl_pc <=  wb_pc;
 	end
 end
 

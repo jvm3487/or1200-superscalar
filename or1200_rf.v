@@ -57,7 +57,7 @@ module or1200_rf(
 	clk, rst,
 
 	// Write i/f
-	cy_we_i, cy_we_o, supv, wb_freeze, addrw, dataw, we, flushpipe,
+	cy_we_i, cy_we_o, supv, wb_freeze, addrw, addrw2, dataw, dataw2, we, we2, flushpipe,
 
 	// Read i/f
 	id_freeze, addra, addrb, addrc, addrd, dataa, datab, datac, datad, rda, rdb, rdc, rdd,
@@ -90,8 +90,11 @@ output				cy_we_o;
 input				supv;
 input				wb_freeze;
 input	[aw-1:0]		addrw;
+input   [aw-1:0] 		addrw2;   
 input	[dw-1:0]		dataw;
+input	[dw-1:0]		dataw2;
 input				we;
+input    			we2;
 input				flushpipe;
 
 //
@@ -136,6 +139,7 @@ wire	[aw-1:0]		rf_addrc;
 wire	[aw-1:0]		rf_addrw;
 wire	[dw-1:0]		rf_dataw;
 wire				rf_we;
+wire				rf_we2;
 wire				spr_valid;
 wire				rf_ena;
 wire				rf_enb; 		
@@ -239,8 +243,9 @@ always @(`OR1200_RST_EVENT rst or posedge clk)
 		rf_we_allow <=  ~flushpipe;
 
 assign rf_we = ((spr_valid & spr_write) | (we & ~wb_freeze)) & rf_we_allow;
-
-assign cy_we_o = cy_we_i && ~wb_freeze && rf_we_allow;
+assign rf_we2 = (we2 & ~wb_freeze) & rf_we_allow;
+   
+assign cy_we_o = cy_we_i & !wb_freeze & rf_we_allow;
    
 //
 // CS RF A asserted when instruction reads operand A and ID stage
@@ -314,6 +319,7 @@ or1200_tpram_32x32 rf_b(
 `else
 //The following is the option that seems to be enabled
 //Just enabled two more registers based on this
+//A second write port was created to allow for two insns to be written in a clock cycle
 `ifdef OR1200_RFRAM_DUALPORT
 
 //
@@ -328,6 +334,7 @@ or1200_tpram_32x32 rf_b(
      (
       // Port A
       .clk_a(clk),
+      .rst(rst),
       .ce_a(rf_ena),
       .addr_a(rf_addra),
       .do_a(from_rfa),
@@ -337,7 +344,12 @@ or1200_tpram_32x32 rf_b(
       .ce_b(rf_we),
       .we_b(rf_we),
       .addr_b(rf_addrw),
-      .di_b(rf_dataw)
+      .di_b(rf_dataw),
+
+      // Additional Write Port
+      .addr_c(addrw2),
+      .di_c(dataw2),
+      .we_c(rf_we2)
       );
 
    //
@@ -352,6 +364,7 @@ or1200_tpram_32x32 rf_b(
      (
       // Port A
       .clk_a(clk),
+      .rst(rst),
       .ce_a(rf_enb),
       .addr_a(addrb),
       .do_a(from_rfb),
@@ -361,7 +374,12 @@ or1200_tpram_32x32 rf_b(
       .ce_b(rf_we),
       .we_b(rf_we),
       .addr_b(rf_addrw),
-      .di_b(rf_dataw)
+      .di_b(rf_dataw),
+
+      // Additional Write Port
+      .addr_c(addrw2),
+      .di_c(dataw2),
+      .we_c(rf_we2)
       );
 //For second instruction
    or1200_dpram #
@@ -373,6 +391,7 @@ or1200_tpram_32x32 rf_b(
      (
       // Port A
       .clk_a(clk),
+      .rst(rst),
       .ce_a(rf_enc),
       .addr_a(rf_addrc),
       .do_a(from_rfc),
@@ -382,7 +401,12 @@ or1200_tpram_32x32 rf_b(
       .ce_b(rf_we),
       .we_b(rf_we),
       .addr_b(rf_addrw),
-      .di_b(rf_dataw)
+      .di_b(rf_dataw),
+
+      // Additional Write Port
+      .addr_c(addrw2),
+      .di_c(dataw2),
+      .we_c(rf_we2)
       );
 
 //For second instruction
@@ -395,6 +419,7 @@ or1200_tpram_32x32 rf_b(
      (
       // Port A
       .clk_a(clk),
+      .rst(rst), 
       .ce_a(rf_end),
       .addr_a(addrd),
       .do_a(from_rfd),
@@ -404,7 +429,39 @@ or1200_tpram_32x32 rf_b(
       .ce_b(rf_we),
       .we_b(rf_we),
       .addr_b(rf_addrw),
-      .di_b(rf_dataw)
+      .di_b(rf_dataw),
+
+      // Additional Write Port
+      .addr_c(addrw2),
+      .di_c(dataw2),
+      .we_c(rf_we2)
+      );
+
+   or1200_testTwoInsn #
+   (
+      .aw(5),
+      .dw(32)
+      )
+   rf_e
+     (
+      // Port A
+      .clk_a(clk),
+      .rst(rst), 
+      //.ce_a(rf_end),
+      //.addr_a(addrd),
+      //.do_a(from_rfd),
+      
+      // Port B
+      .clk_b(clk),
+      .ce_b(rf_we),
+      .we_b(rf_we),
+      .addr_b(rf_addrw),
+      .di_b(rf_dataw),
+
+      // Additional Write Port
+      .addr_c(addrw2),
+      .di_c(dataw2),
+      .we_c(rf_we2)
       );
 `else
 

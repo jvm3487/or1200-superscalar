@@ -93,7 +93,7 @@ input				du_stall;
 input				mac_stall;
 output				genpc_freeze;
 output				if_freeze;
-output				id_freeze;
+output				id_freeze;			
 output				ex_freeze;
 output				wb_freeze;
 input                           saving_if_insn;
@@ -134,9 +134,9 @@ assign if_freeze = id_freeze | extend_flush;
 //half insn done was added to handle the possibility that instructions are going through
 //one at a time in the execution phase due to data dependency or special instructions with only one structure (i.e. fpu)
 assign id_freeze = (lsu_stall | (~lsu_unstall & if_stall) | multicycle_freeze 
-		    | (|waiting_on) | force_dslot_fetch) | du_stall | half_insn_done;
+		    | (|waiting_on) | force_dslot_fetch) | du_stall /*| half_insn_done*/;
+   
 assign ex_freeze = wb_freeze;
-
 assign wb_freeze = (lsu_stall | (~lsu_unstall & if_stall) | multicycle_freeze 
 		    | (|waiting_on)) | du_stall | abort_ex;
 
