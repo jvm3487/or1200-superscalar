@@ -1,7 +1,9 @@
 # or1200-superscalar
 The goal of this project is to make the existing or1200 core superscalar (near completition of first draft)
 
-Currently, the processor has the ability to execute two insns at a time but does not handle sprs/exceptions.  It also is currently inserting a nop after executing two insns at a time bc genpc.v has not been updated to account for differing changes in number of instructions being executed.
+Currently, the processor has the ability to execute two insns at a time but it is currently inserting a nop after executing two insns at a time bc genpc.v has not been updated to account for differing changes in number of instructions being executed.
+
+The code has not been cleaned up and is rather messy.
 
 Current changes include:
 - Modify instruction cache to contain 64 bits per block (2 instructions)
@@ -18,3 +20,4 @@ Current changes include:
 - Add carry, overflow, flag logic
 - Add 2nd write port on registers
 - Add 5th test register for or1200_monitor.v
+- Modified LSU to be able to handle a load/store that depends on the previous instruction
