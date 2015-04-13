@@ -225,6 +225,8 @@ wire          			rf_rdc; //added for second set
 wire     			rf_rdd; //added for second set
 wire	[dw-1:0]		id_simma;
 wire    [dw-1:0] 		id_simmc;
+reg     [dw-1:0] 		id_simm_lsu;
+reg [dw-1:0] 		id_simm_next;   
 //wire	[dw-1:2]		id_branch_addrtarget;
 wire	[dw-1:2]		ex_branch_addrtarget;
 wire	[`OR1200_ALUOP_WIDTH-1:0]	alu_op;
@@ -255,6 +257,8 @@ wire	[dw-1:0]		rf_datab;
 wire    [dw-1:0] 		rf_datac;
 wire    [dw-1:0] 		rf_datad;
 wire	[dw-1:0]		muxed_a;
+reg     [dw-1:0] 		muxed_a_lsu;
+reg     [dw-1:0] 		muxed_next;				
 wire	[dw-1:0]		muxed_b;
 wire	[dw-1:0]		muxed_c;
 wire	[dw-1:0]		muxed_d;
@@ -374,6 +378,8 @@ wire				except_dbuserr;
 wire				abort_ex;
 wire				abort_mvspr;
 wire     			ex_two_insns;
+wire     			ex_two_insns_next;
+   
 			
 //The below signal was only used for testing
 wire 			half_insn_done;
@@ -382,6 +388,14 @@ wire [1:0] 	data_dependent;
 reg  [1:0] 	data_dependent_next;   
 reg  [1:0] 	data_dependent_next_next;		
  			
+//used for testing
+   wire 	flag1;
+   wire 	over1;
+   wire 	carry1;
+   reg 	flag1_next;
+   reg 	over1_next;
+   reg 	carry1_next;
+   
    
 //
 // Send exceptions to Debug Unit
@@ -563,7 +577,8 @@ or1200_ctrl or1200_ctrl(
 	.ex_branch_addrtarget(ex_branch_addrtarget),
 	.ex_simm(ex_simm),
 	.ex_two_insns(ex_two_insns),
-	.abort_ex(abort_ex),
+	.ex_two_insns_next(ex_two_insns_next),
+        .abort_ex(abort_ex),
 	.sel_a(sel_a),
 	.sel_b(sel_b),
 	.sel_c(sel_c),
@@ -782,6 +797,20 @@ assign cy_we_alu = cy_we_alua | cy_we_aluc;
 assign flagc = flag_we_alu ? flagforw_alu : flag;
 assign carryc = cy_we_alua ? cyforw : carry;  
    
+//used for testing
+   assign flag1 = (flag_we_alu & flagforw_alu) | (flagforw_fpu & flag_we_fpu);
+   assign over1 = ov_we_alua & ovforwa;
+   assign carry1 = cy_we_alua & cyforwa;
+
+always @(posedge clk) begin
+   if (!ex_freeze) begin
+      flag1_next <= flag1;
+      over1_next <= over1;
+      carry1_next <= carry;
+   end
+end
+   
+
 or1200_alu or1200_alu2(
 	.a(operand_c),
 	.b(operand_d),
@@ -920,16 +949,41 @@ or1200_sprs or1200_sprs(
 	.sr(sr),
 	.branch_op(branch_op),
 	.dsx(dsx)
+			
 );
 
+always @(posedge clk or `OR1200_RST_EVENT rst) begin
+  if ((rst == `OR1200_RST_VALUE) | id_flushpipe) begin
+     muxed_next <= 32'h0;
+     id_simm_next <= 32'h0;
+  end
+  else if (!ex_freeze) begin
+     muxed_next <= muxed_c;
+     id_simm_next <= id_simmc;
+  end
+end
+   
+always @(*) begin
+   if (!half_insn_done) begin
+      id_simm_lsu <= id_simma;
+      muxed_a_lsu <= muxed_a;
+   end
+   else  begin
+      id_simm_lsu <= id_simm_next;
+      muxed_a_lsu <= muxed_next;
+   end
+end
+   
 //
 // Instantiation of load/store unit
 //
 or1200_lsu or1200_lsu(
 	.clk(clk),
 	.rst(rst),
-	.id_addrbase(muxed_a),
-	.id_addrofs(id_simma),
+	//This was changed due to possibility of load being second half of instruction and a data dependency
+	//It performs an ALU type operation which does not need to occur in decode stage
+	//.id_addrbase(muxed_a_lsu),
+	//.id_addrofs(id_simm_lsu),
 	.ex_addrbase(operand_a),
 	.ex_addrofs(ex_simm),
 	.id_lsu_op(id_lsu_op),
@@ -1089,7 +1143,9 @@ or1200_except or1200_except(
 	.to_sr(to_sr),
 	.sr(sr),
 	.abort_ex(abort_ex),
-	.dsx(dsx)
+	.dsx(dsx),
+	.ex_two_insns(ex_two_insns),
+	.ex_two_insns_next(ex_two_insns_next)
 );
 
 //

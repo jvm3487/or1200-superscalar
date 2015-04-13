@@ -124,9 +124,14 @@ reg	[3:0]			dcpu_sel_o;
 
 reg	[`OR1200_LSUOP_WIDTH-1:0] ex_lsu_op;
 wire	[`OR1200_LSUEA_PRECALC:0] id_precalc_sum;
-reg	[`OR1200_LSUEA_PRECALC:0] dcpu_adr_r;
+wire	[`OR1200_LSUEA_PRECALC:0] dcpu_adr_r;
 reg				except_align;
-
+   reg 				except_align_next;
+   reg 				ex_freeze_next;
+   reg 				id_freeze_next;
+   reg 				flushpipe_next;
+				
+   
 //
 // ex_lsu_op
 //
@@ -143,31 +148,56 @@ end
 // Precalculate part of load/store EA in ID stage
 //
 
-assign id_precalc_sum = id_addrbase[`OR1200_LSUEA_PRECALC-1:0] +
-                        id_addrofs[`OR1200_LSUEA_PRECALC-1:0];
+assign id_precalc_sum = ex_addrbase[`OR1200_LSUEA_PRECALC-1:0] +
+                        ex_addrofs[`OR1200_LSUEA_PRECALC-1:0];
 
-always @(posedge clk or `OR1200_RST_EVENT rst) begin
+/*always @(posedge clk or `OR1200_RST_EVENT rst) begin
     if (rst == `OR1200_RST_VALUE)
-        dcpu_adr_r <=  {`OR1200_LSUEA_PRECALC+1{1'b0}};
-    else if (!ex_freeze)
-        dcpu_adr_r <=  id_precalc_sum;
-end
+      dcpu_adr_r <=  {`OR1200_LSUEA_PRECALC+1{1'b0}};
+    else if (!ex_freeze)*/
+      assign dcpu_adr_r = id_precalc_sum;
+//end
 
 //
 // Generate except_align in ID stage
 //
+
+//Took away the clock because this makes a data dependency load impossible to deal with unless stalling extra cycles
+   
 always @(posedge clk or `OR1200_RST_EVENT rst) begin
-    if (rst == `OR1200_RST_VALUE)
+    if (rst == `OR1200_RST_VALUE) begin
+       ex_freeze_next <= 1'b0;
+       id_freeze_next <= 1'b0;
+       flushpipe_next <= 1'b0;
+    end
+    else begin
+       ex_freeze_next <= ex_freeze;
+       id_freeze_next <= id_freeze;
+       flushpipe_next <= flushpipe;
+    end // else: !if(rst == `OR1200_RST_VALUE)
+end
+
+   
+always @(posedge clk or `OR1200_RST_EVENT rst) begin
+    if (rst == `OR1200_RST_VALUE) begin
+       except_align_next <= 1'b0;
+    end
+    else if (!ex_freeze_next)
+      except_align_next <= except_align;
+end
+    
+always @(*) begin
+    if (!ex_freeze_next & id_freeze_next | flushpipe_next)
         except_align <=  1'b0;
-    else if (!ex_freeze & id_freeze | flushpipe)
-        except_align <=  1'b0;
-    else if (!ex_freeze)
-        except_align <=  ((id_lsu_op == `OR1200_LSUOP_SH) |
-                            (id_lsu_op == `OR1200_LSUOP_LHZ) |
-                            (id_lsu_op == `OR1200_LSUOP_LHS)) & id_precalc_sum[0]
-		        |  ((id_lsu_op == `OR1200_LSUOP_SW) |
-		            (id_lsu_op == `OR1200_LSUOP_LWZ) |
-		            (id_lsu_op == `OR1200_LSUOP_LWS)) & |id_precalc_sum[1:0];
+    else if (!ex_freeze_next)
+        except_align <=  ((ex_lsu_op == `OR1200_LSUOP_SH) |
+                            (ex_lsu_op == `OR1200_LSUOP_LHZ) |
+                            (ex_lsu_op == `OR1200_LSUOP_LHS)) & id_precalc_sum[0]
+		        |  ((ex_lsu_op == `OR1200_LSUOP_SW) |
+		            (ex_lsu_op == `OR1200_LSUOP_LWZ) |
+		            (ex_lsu_op == `OR1200_LSUOP_LWS)) & |id_precalc_sum[1:0];
+    //else
+    //  except_align <= except_align_next;
 end
 
 //

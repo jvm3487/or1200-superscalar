@@ -79,7 +79,7 @@ module or1200_except
    spr_dat_npc, datain, du_dsr, epcr_we, eear_we, esr_we, pc_we, epcr, eear, 
    du_dmr1, du_hwbkpt, du_hwbkpt_ls_r, esr, sr_we, to_sr, sr, lsu_addr, 
    abort_ex, icpu_ack_i, icpu_err_i, dcpu_ack_i, dcpu_err_i, sig_fp, fpcsr_fpee,
-   dsx
+   dsx, ex_two_insns, ex_two_insns_next
    
 );
 
@@ -150,6 +150,9 @@ input				icpu_err_i;
 input				dcpu_ack_i;
 input				dcpu_err_i;
 output 			        dsx;
+input   			ex_two_insns;
+input 	         		ex_two_insns_next;
+ 			
    
 //
 // Internal regs and wires
@@ -228,9 +231,9 @@ assign abort_ex = sig_dbuserr | sig_dmmufault | sig_dtlbmiss | sig_align |
 // abort spr read/writes   
 assign abort_mvspr  = sig_illegal | ((du_hwbkpt | trace_trap) & ex_pc_val 
 				     & !sr_ted & !dsr_te) ; 
-assign spr_dat_ppc = wb_pc;   
+assign spr_dat_ppc = ex_two_insns_next ? (wb_pc + 32'h4) : wb_pc;   
    
-assign spr_dat_npc = ex_void ? id_pc : ex_pc;
+assign spr_dat_npc = ex_void ? id_pc : ex_two_insns ? (ex_pc + 32'h4) : ex_pc;
 
 //
 // Order defines exception detection priority

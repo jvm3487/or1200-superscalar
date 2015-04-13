@@ -61,7 +61,7 @@ module or1200_testTwoInsn
   (
    // Generic synchronous double-port RAM interface
    clk_a, rst, ce_a, addr_a, do_a,
-   clk_b, ce_b, we_b, addr_b, di_b, addr_c, di_c, we_c
+   clk_b, ce_b, we_b, addr_b, di_b, addr_c, di_c, we_c, wb_freeze
    );
    
    //
@@ -86,7 +86,8 @@ module or1200_testTwoInsn
    input [aw-1:0] 		addr_c;
    input [dw-1:0] 		di_c;
    input 			we_c;
-   
+   input 			wb_freeze;
+			
    //
    // Internal wires and registers
    //
@@ -149,9 +150,10 @@ module or1200_testTwoInsn
 	mem[addr_c] <= di_c;
       if (ce_b & we_b & (!we_c | (addr_c != addr_b))) //second part of logic is needed in case writing to same register
 	mem[addr_b] <=  mem_inter[addr_b];
-      for (i = 0; i < 32; i = i +1) begin
-	 mem_inter_next[i] <= mem_inter[i];
-      end
+      if (!wb_freeze)
+	for (i = 0; i < 32; i = i +1) begin
+	   mem_inter_next[i] <= mem_inter[i];
+	end
    end
 
    //used for simulator

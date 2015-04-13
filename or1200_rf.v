@@ -461,7 +461,8 @@ or1200_tpram_32x32 rf_b(
       // Additional Write Port
       .addr_c(addrw2),
       .di_c(dataw2),
-      .we_c(rf_we2)
+      .we_c(rf_we2),
+      .wb_freeze(wb_freeze)
       );
 `else
 
