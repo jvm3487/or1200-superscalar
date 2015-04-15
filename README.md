@@ -3,8 +3,6 @@ The goal of this project is to make the existing or1200 core superscalar (comple
 
 Currently, the processor has the ability to execute two insns at a time except for certain instances of stalls (asserts dependency_hazard_stall signal in or1200_ctrl.v to account for both structural and data dependency hazards).
 
-The code has not been cleaned up and is rather messy.
-
 Current changes include:
 - Modify instruction cache to contain 64 bits per block (2 instructions)
 - Modify instruction cache to output two insns if available in one cycle
