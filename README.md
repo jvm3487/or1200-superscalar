@@ -1,7 +1,7 @@
 # or1200-superscalar
-The goal of this project is to make the existing or1200 core superscalar (near completition of first draft)
+The goal of this project is to make the existing or1200 core superscalar (completed first draft and successfully boots linux kernel on atlys board)
 
-Currently, the processor has the ability to execute two insns at a time but it is currently inserting a nop after executing two insns at a time bc genpc.v has not been updated to account for differing changes in number of instructions being executed.
+Currently, the processor has the ability to execute two insns at a time except for certain instances of stalls (asserts dependency_hazard_stall signal in or1200_ctrl.v to account for both structural and data dependency hazards).
 
 The code has not been cleaned up and is rather messy.
 
@@ -21,3 +21,8 @@ Current changes include:
 - Add 2nd write port on registers
 - Add 5th test register for or1200_monitor.v
 - Modified LSU to be able to handle a load/store that depends on the previous instruction
+- Modify logic to generated next PC
+- Modify branch stall logic in the event that a stall occurs in the instruction prior to branch
+- Modify signal to instruction cache in the event that branch occurs in instruction following a delay slot
+- Modify exception signal to accurately record next instruction to be executed
+- Modify simulator (or1200_monitor.v) to track execution of two insns
