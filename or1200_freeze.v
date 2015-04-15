@@ -131,10 +131,8 @@ reg [`OR1200_WAIT_ON_WIDTH-1:0]	waiting_on;
 assign genpc_freeze = (du_stall & !saving_if_insn) | flushpipe_r;
 assign if_freeze = id_freeze | extend_flush;
 
-//half insn done was added to handle the possibility that instructions are going through
-//one at a time in the execution phase due to data dependency or special instructions with only one structure (i.e. fpu)
 assign id_freeze = (lsu_stall | (~lsu_unstall & if_stall) | multicycle_freeze 
-		    | (|waiting_on) | force_dslot_fetch) | du_stall /*| half_insn_done*/;
+		    | (|waiting_on) | force_dslot_fetch) | du_stall;
    
 assign ex_freeze = wb_freeze;
 assign wb_freeze = (lsu_stall | (~lsu_unstall & if_stall) | multicycle_freeze 
@@ -147,7 +145,6 @@ always @(posedge clk or `OR1200_RST_EVENT rst)
 	if (rst == `OR1200_RST_VALUE)
 		flushpipe_r <=  1'b0;
 	else if (icpu_ack_i | icpu_err_i)
-//	else if (!if_stall)
 		flushpipe_r <=  flushpipe;
 	else if (!flushpipe)
 		flushpipe_r <=  1'b0;

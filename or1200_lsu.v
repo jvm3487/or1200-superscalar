@@ -120,17 +120,15 @@ input	[3:0]			dcpu_tag_i;
 //
 // Internal wires/regs
 //
-reg	[3:0]			dcpu_sel_o;
-
-reg	[`OR1200_LSUOP_WIDTH-1:0] ex_lsu_op;
-wire	[`OR1200_LSUEA_PRECALC:0] id_precalc_sum;
-wire	[`OR1200_LSUEA_PRECALC:0] dcpu_adr_r;
-reg				except_align;
-   reg 				except_align_next;
+   reg [3:0] 			dcpu_sel_o;
+   reg [`OR1200_LSUOP_WIDTH-1:0] ex_lsu_op;
+   wire [`OR1200_LSUEA_PRECALC:0] id_precalc_sum;
+   wire [`OR1200_LSUEA_PRECALC:0] dcpu_adr_r;
+   reg 				  except_align;
    reg 				ex_freeze_next;
    reg 				id_freeze_next;
    reg 				flushpipe_next;
-				
+   reg   			except_align_next;				
    
 //
 // ex_lsu_op
@@ -145,18 +143,12 @@ always @(posedge clk or `OR1200_RST_EVENT rst) begin
 end
 
 //
-// Precalculate part of load/store EA in ID stage
+// Precalculate part of load/store changed to ex stage to account for possibility of load depending on the previous instruction
 //
 
 assign id_precalc_sum = ex_addrbase[`OR1200_LSUEA_PRECALC-1:0] +
                         ex_addrofs[`OR1200_LSUEA_PRECALC-1:0];
-
-/*always @(posedge clk or `OR1200_RST_EVENT rst) begin
-    if (rst == `OR1200_RST_VALUE)
-      dcpu_adr_r <=  {`OR1200_LSUEA_PRECALC+1{1'b0}};
-    else if (!ex_freeze)*/
-      assign dcpu_adr_r = id_precalc_sum;
-//end
+assign dcpu_adr_r = id_precalc_sum;
 
 //
 // Generate except_align in ID stage
@@ -169,35 +161,29 @@ always @(posedge clk or `OR1200_RST_EVENT rst) begin
        ex_freeze_next <= 1'b0;
        id_freeze_next <= 1'b0;
        flushpipe_next <= 1'b0;
+       except_align_next <= 1'b0;
     end
     else begin
        ex_freeze_next <= ex_freeze;
        id_freeze_next <= id_freeze;
        flushpipe_next <= flushpipe;
-    end // else: !if(rst == `OR1200_RST_VALUE)
+       except_align_next <= except_align;
+    end 
 end
-
-   
-always @(posedge clk or `OR1200_RST_EVENT rst) begin
-    if (rst == `OR1200_RST_VALUE) begin
-       except_align_next <= 1'b0;
-    end
-    else if (!ex_freeze_next)
-      except_align_next <= except_align;
-end
-    
+ 
+//All control signals registered to next clock cycle  
 always @(*) begin
-    if (!ex_freeze_next & id_freeze_next | flushpipe_next)
-        except_align <=  1'b0;
-    else if (!ex_freeze_next)
-        except_align <=  ((ex_lsu_op == `OR1200_LSUOP_SH) |
-                            (ex_lsu_op == `OR1200_LSUOP_LHZ) |
-                            (ex_lsu_op == `OR1200_LSUOP_LHS)) & id_precalc_sum[0]
-		        |  ((ex_lsu_op == `OR1200_LSUOP_SW) |
-		            (ex_lsu_op == `OR1200_LSUOP_LWZ) |
-		            (ex_lsu_op == `OR1200_LSUOP_LWS)) & |id_precalc_sum[1:0];
-    //else
-    //  except_align <= except_align_next;
+   if (!ex_freeze_next & id_freeze_next | flushpipe_next)
+     except_align <=  1'b0;
+   else if (!ex_freeze_next)
+     except_align <=  ((ex_lsu_op == `OR1200_LSUOP_SH) |
+                       (ex_lsu_op == `OR1200_LSUOP_LHZ) |
+                       (ex_lsu_op == `OR1200_LSUOP_LHS)) & id_precalc_sum[0]
+       |  ((ex_lsu_op == `OR1200_LSUOP_SW) |
+	   (ex_lsu_op == `OR1200_LSUOP_LWZ) |
+	   (ex_lsu_op == `OR1200_LSUOP_LWS)) & |id_precalc_sum[1:0];
+   else
+     except_align <= except_align_next;
 end
 
 //

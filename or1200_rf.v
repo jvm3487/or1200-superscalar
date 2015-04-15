@@ -164,20 +164,9 @@ reg [dw-1:0] 		        from_rfd_next;
    wire 			spr_cs_fe;
    // Track RF A's address each time it's enabled
    reg	[aw-1:0]		addra_last;
-
-   //this is needed because half_ins_done (same thing with from_rfc_next) refers to the id stage and the other half of the insn is currently in the if stage
-   /*always @(posedge clk)
-     if (!id_freeze) //!id_freeze is needed in case a jump occurs in the second half of an insn so that the correct registers are selected depending on what half of the insn id_insn is in - probably can be removed after testing
-       half_insn_done_next <= half_insn_done_i;*/
-   //registered it in ctrl so no need to do it again
-   //assign half_insn_done_next = half_insn_done_i;
-     
-   /*always @(posedge clk) begin
-      from_rfc_next <= from_rfc;
-      from_rfd_next <= from_rfd;
-   end*/  
+  
    always @(posedge clk)
-     if (((rf_ena /*& !half_insn_done_next*/) | (rf_enc /*& half_insn_done_next*/)) & !(spr_cs_fe | (du_read & spr_cs)))
+     if (rf_ena & !(spr_cs_fe | (du_read & spr_cs)))
        addra_last <= addra;
 
    always @(posedge clk)
@@ -193,19 +182,19 @@ reg [dw-1:0] 		        from_rfd_next;
 assign spr_valid = spr_cs & (spr_addr[10:5] == `OR1200_SPR_RF);
 
 //
-// SPR data output is always from RF A - unless you do two insns and then maybe not
+// SPR data output is always from RF A
 //
-assign spr_dat_o = /*half_insn_done_next ? from_rfc_next :*/ from_rfa;
+assign spr_dat_o = from_rfa;
 
 //
-// Operand A comes from RF or from saved A register - unless two insns
+// Operand A comes from RF or from saved A register
 //
-assign dataa = /*half_insn_done_next ? from_rfc_next :*/ from_rfa;
+assign dataa = from_rfa;
 
 //
 // Operand B comes from RF or from saved B register
 //
-assign datab = /*half_insn_done_next ? from_rfd_next :*/ from_rfb;
+assign datab = from_rfb;
 
 assign datac = from_rfc;   
 
@@ -218,10 +207,7 @@ assign datad = from_rfd;
 assign rf_addra = (spr_valid & !spr_write) ? spr_addr[4:0] : 
 		  spr_cs_fe ? addra_last : addra;
 
-//similar format for two insns
-assign rf_addrc = /*(spr_valid & !spr_write) ? spr_addr[4:0] : 
-		  spr_cs_fe ? addra_last : */addrc;
-
+assign rf_addrc = addrc;
   
 //
 // RF write address is either from SPRS or normal from CPU control
@@ -259,8 +245,8 @@ assign rf_ena = (rda & ~id_freeze) | (spr_valid & !spr_write) | spr_cs_fe;
 //
 assign rf_enb = rdb & ~id_freeze;
 
-//added for two insns - similar format as the original
-assign rf_enc = (rdc & ~id_freeze) | (spr_valid & !spr_write) | spr_cs_fe;
+//Added for two insns
+assign rf_enc = rdc & ~id_freeze;
 assign rf_end = rdd & ~id_freeze;
    
    
@@ -437,6 +423,8 @@ or1200_tpram_32x32 rf_b(
       .we_c(rf_we2)
       );
 
+   //This is only used by the simulator(or1200-monitor)
+   
    or1200_testTwoInsn #
    (
       .aw(5),

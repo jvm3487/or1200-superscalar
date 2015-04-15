@@ -224,10 +224,7 @@ wire				rf_rdb;
 wire          			rf_rdc; //added for second set 
 wire     			rf_rdd; //added for second set
 wire	[dw-1:0]		id_simma;
-wire    [dw-1:0] 		id_simmc;
-reg     [dw-1:0] 		id_simm_lsu;
-reg [dw-1:0] 		id_simm_next;   
-//wire	[dw-1:2]		id_branch_addrtarget;
+wire    [dw-1:0] 		id_simmc;   
 wire	[dw-1:2]		ex_branch_addrtarget;
 wire	[`OR1200_ALUOP_WIDTH-1:0]	alu_op;
 wire	[`OR1200_ALUOP2_WIDTH-1:0]	alu_op2;
@@ -256,15 +253,14 @@ wire	[dw-1:0]		rf_dataa;
 wire	[dw-1:0]		rf_datab;
 wire    [dw-1:0] 		rf_datac;
 wire    [dw-1:0] 		rf_datad;
-wire	[dw-1:0]		muxed_a;
-reg     [dw-1:0] 		muxed_a_lsu;
-reg     [dw-1:0] 		muxed_next;				
+wire	[dw-1:0]		muxed_a;				
 wire	[dw-1:0]		muxed_b;
 wire	[dw-1:0]		muxed_c;
 wire	[dw-1:0]		muxed_d;
 wire	[dw-1:0]		wb_forw;
 wire	[dw-1:0]		wb_forwc;
 wire				wbforw_valid;
+wire				wbforw_validc;
 reg	[dw-1:0]		operand_a;
 reg	[dw-1:0]		operand_b;
 wire	[dw-1:0]		operand_a_inter;
@@ -358,7 +354,6 @@ wire				ex_spr_write;
 wire				if_stall;
 wire				id_macrc_op;
 wire				ex_macrc_op;
-//wire	[`OR1200_MACOP_WIDTH-1:0] id_mac_op; as far as i can tell, this is useless
 wire	[`OR1200_MACOP_WIDTH-1:0] mac_op;
 wire	[31:0]			mult_mac_result;
 wire				mult_mac_stall;
@@ -370,7 +365,8 @@ wire				lsu_unstall;
 wire				except_align;
 wire				except_dtlbmiss;
 wire				except_dmmufault;
-wire				except_illegal;
+wire				except_illegala;
+wire				except_illegalc;
 wire				except_itlbmiss;
 wire				except_immufault;
 wire				except_ibuserr;
@@ -379,20 +375,16 @@ wire				abort_ex;
 wire				abort_mvspr;
 wire     			ex_two_insns;
 wire     			ex_two_insns_next;
-wire     			id_two_insns;   
-//wire 	         		id_two_insns_next;
-			
+wire     			if_two_insns;   
+wire    			flagforwa;
 wire    			dependency_hazard_stall;
-   
-			
-//The below signal was only used for testing
-wire 			half_insn_done;
-wire 		half_insn_done_next;
-wire [1:0] 	data_dependent;
-reg  [1:0] 	data_dependent_next;   
-reg  [1:0] 	data_dependent_next_next;		
+   wire 			half_insn_done;
+   wire 			half_insn_done_next;
+   wire [1:0] 			data_dependent;
+   reg [1:0] 			data_dependent_next;   
+   reg [1:0] 			data_dependent_next_next;		
  			
-//used for testing
+   //Used for or1200-monitor
    wire 	flag1;
    wire 	over1;
    wire 	carry1;
@@ -489,7 +481,6 @@ or1200_genpc #(.boot_adr(boot_adr)) or1200_genpc(
 	.except_type(except_type),
 	.except_start(except_start),
 	.except_prefix(sr[`OR1200_SR_EPH]),
-	// This signal does nothing! .id_branch_addrtarget(id_branch_addrtarget),
 	.ex_branch_addrtarget(ex_branch_addrtarget),
 	.muxed_b(muxed_b),
 	.operand_b(operand_b),
@@ -504,8 +495,7 @@ or1200_genpc #(.boot_adr(boot_adr)) or1200_genpc(
 	.no_more_dslot(no_more_dslot),
 	.lsu_stall(lsu_stall),
 	.ex_two_insns(ex_two_insns),
-	.id_two_insns(id_two_insns),
-	//.id_two_insns_next(id_two_insns_next),
+	.if_two_insns(if_two_insns),
 	.dependency_hazard_stall(dependency_hazard_stall)		 
 );
 
@@ -532,7 +522,6 @@ or1200_if or1200_if(
 	.except_itlbmiss(except_itlbmiss),
 	.except_immufault(except_immufault),
 	.except_ibuserr(except_ibuserr),
-	.half_insn_done_i(half_insn_done),
 	.dependency_hazard_stall(dependency_hazard_stall)
 );
 //
@@ -581,13 +570,11 @@ or1200_ctrl or1200_ctrl(
 	.wb_insn(wb_insn),
 	.id_simma(id_simma),
 	.id_simmc(id_simmc),
-	//.id_branch_addrtarget(id_branch_addrtarget),
 	.ex_branch_addrtarget(ex_branch_addrtarget),
 	.ex_simm(ex_simm),
 	.ex_two_insns(ex_two_insns),
 	.ex_two_insns_next(ex_two_insns_next),
-        .id_two_insns(id_two_insns),
-	//.id_two_insns_next(id_two_insns_next),
+        .if_two_insns(if_two_insns),
         .dependency_hazard_stall(dependency_hazard_stall),
 	.abort_ex(abort_ex),
 	.sel_a(sel_a),
@@ -600,7 +587,6 @@ or1200_ctrl or1200_ctrl(
 	.cust5_opc(cust5_opc),
 	.cust5_limmc(cust5_limmc),
 	.id_pc(id_pc),
-	.ex_pc(ex_pc),
 	.multicycle(multicycle),
         .wait_on(wait_on),			
 	.wbforw_valid(wbforw_valid),
@@ -613,16 +599,16 @@ or1200_ctrl or1200_ctrl(
 	.ex_void(ex_void),
 	.ex_spr_read(ex_spr_read),
 	.ex_spr_write(ex_spr_write),
-	//.id_mac_op(id_mac_op), no point to this
 	.id_macrc_op(id_macrc_op),
 	.ex_macrc_op(ex_macrc_op),
 	.rfe(rfe),
 	.du_hwbkpt(du_hwbkpt),
-	.except_illegal(except_illegal),
+	.except_illegala(except_illegala),
+	.except_illegalc(except_illegalc),		
 	.dc_no_writethrough(dc_no_writethrough),
 	.data_dependent(data_dependent),
-        .half_insn_done_o(half_insn_done),
-	.half_insn_done_next_o(half_insn_done_next)		
+        .half_insn_done(half_insn_done),
+	.half_insn_done_next(half_insn_done_next)		
 );
 
 //
@@ -664,32 +650,6 @@ or1200_rf or1200_rf(
 	.half_insn_done_i(half_insn_done)
 );
 
-//
-// Instantiation of operand muxes - doubled for two insns
-//
-// The logic below chooses between the two insns
-/*always @(posedge clk or `OR1200_RST_EVENT rst) begin
-  if ((rst == `OR1200_RST_VALUE) | id_flushpipe) begin
-     operand_d_next <= 32'b0;
-     operand_c_next <= 32'b0; 
-  end
-  else if (!ex_freeze) begin
-     operand_d_next <= operand_d;
-     operand_c_next <= operand_c;
-  end
-end // always @ (posedge clk or `OR1200_RST_EVENT rst)
-   
-always @(*) begin
-   if (half_insn_done_next) begin  
-      operand_a <= operand_c_next;
-      operand_b <= operand_d_next;
-   end
-   else begin
-      operand_a <= operand_aa;
-      operand_b <= operand_ba;
-   end
-end*/
-
 or1200_operandmuxes or1200_operandmuxes1(
 	.clk(clk),
 	.rst(rst),
@@ -712,7 +672,13 @@ or1200_operandmuxes or1200_operandmuxes1(
 
 //data dependency mux in the event that insns in the same stage depend on each other 
 always @(posedge clk or `OR1200_RST_EVENT rst) begin
-  if ((rst == `OR1200_RST_VALUE) | id_flushpipe) begin
+  if (rst == `OR1200_RST_VALUE) begin
+     operand_c_next <= 32'h0;
+     operand_d_next <= 32'h0;
+     data_dependent_next <= 2'd0;
+     data_dependent_next_next <= 2'd0;
+  end
+  else if (id_flushpipe) begin
      operand_c_next <= 32'h0;
      operand_d_next <= 32'h0;
      data_dependent_next <= 2'd0;
@@ -808,11 +774,12 @@ assign cy_we_alu = cy_we_alua | cy_we_aluc;
 assign flagc = flag_we_alu ? flagforw_alu : flag;
 assign carryc = cy_we_alua ? cyforw : carry;  
    
-//used for testing
+//Used for or1200-monitor
    assign flag1 = (flag_we_alu & flagforw_alu) | (flagforw_fpu & flag_we_fpu);
    assign over1 = ov_we_alua & ovforwa;
    assign carry1 = cy_we_alua & cyforwa;
 
+   //Used for or1200-monitor
 always @(posedge clk) begin
    if (!ex_freeze) begin
       flag1_next <= flag1;
@@ -962,28 +929,6 @@ or1200_sprs or1200_sprs(
 	.dsx(dsx)
 			
 );
-
-always @(posedge clk or `OR1200_RST_EVENT rst) begin
-  if ((rst == `OR1200_RST_VALUE) | id_flushpipe) begin
-     muxed_next <= 32'h0;
-     id_simm_next <= 32'h0;
-  end
-  else if (!ex_freeze) begin
-     muxed_next <= muxed_c;
-     id_simm_next <= id_simmc;
-  end
-end
-   
-always @(*) begin
-   if (!half_insn_done) begin
-      id_simm_lsu <= id_simma;
-      muxed_a_lsu <= muxed_a;
-   end
-   else  begin
-      id_simm_lsu <= id_simm_next;
-      muxed_a_lsu <= muxed_next;
-   end
-end
    
 //
 // Instantiation of load/store unit
@@ -1094,8 +1039,9 @@ or1200_except or1200_except(
 	.rst(rst),
 	.sig_ibuserr(except_ibuserr),
 	.sig_dbuserr(except_dbuserr),
-	.sig_illegal(except_illegal),
-	.sig_align(except_align),
+	.sig_illegala(except_illegala),
+	.sig_illegalc(except_illegalc),
+        .sig_align(except_align),
 	.sig_range(sig_range),
 	.sig_dtlbmiss(except_dtlbmiss),
 	.sig_dmmufault(except_dmmufault),
@@ -1134,7 +1080,6 @@ or1200_except or1200_except(
 	.ex_void(ex_void),
 	.spr_dat_ppc(spr_dat_ppc),
 	.spr_dat_npc(spr_dat_npc),
-
 	.datain(spr_dat_cpu),
 	.branch_op(branch_op),
 	.du_dsr(du_dsr),
@@ -1148,7 +1093,6 @@ or1200_except or1200_except(
         .epcr(epcr),
 	.eear(eear),
 	.esr(esr),
-
 	.lsu_addr(dcpu_adr_o),
 	.sr_we(sr_we),
 	.to_sr(to_sr),

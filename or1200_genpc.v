@@ -61,10 +61,10 @@ module or1200_genpc(
 
 	// Internal i/f
 	pre_branch_op, branch_op, except_type, except_prefix,
-	/*id_branch_addrtarget,*/ ex_branch_addrtarget, muxed_b, operand_b, 
+	ex_branch_addrtarget, muxed_b, operand_b, 
 	flag, flagforw, ex_branch_taken, except_start,
 	epcr, spr_dat_i, spr_pc_we, genpc_refetch,
-	genpc_freeze, no_more_dslot, lsu_stall, ex_two_insns, id_two_insns, /*id_two_insns_next,*/ dependency_hazard_stall
+	genpc_freeze, no_more_dslot, lsu_stall, ex_two_insns, if_two_insns, dependency_hazard_stall
 );
 
 //
@@ -94,7 +94,6 @@ input   [`OR1200_BRANCHOP_WIDTH-1:0]    pre_branch_op;
 input	[`OR1200_BRANCHOP_WIDTH-1:0]	branch_op;
 input	[`OR1200_EXCEPT_WIDTH-1:0]	except_type;
 input					except_prefix;
-//This signal does nothing! input	[31:2]			id_branch_addrtarget;
 input	[31:2]			ex_branch_addrtarget;
 input	[31:0]			muxed_b;
 input	[31:0]			operand_b;
@@ -110,9 +109,7 @@ input				genpc_freeze;
 input				no_more_dslot;
 input				lsu_stall;
 input   			ex_two_insns;
-input   			id_two_insns;
-reg 			id_two_insns_next;
-   
+input   			if_two_insns;  
 input   			dependency_hazard_stall;			   
    
 parameter boot_adr = `OR1200_BOOT_ADR;
@@ -170,12 +167,12 @@ reg				wait_lsu;
    //
    always @(pcreg or ex_branch_addrtarget or flag or branch_op or except_type
 	    or except_start or operand_b or epcr or spr_pc_we or spr_dat_i or 
-	    except_prefix or id_two_insns or dependency_hazard_stall) 
+	    except_prefix or if_two_insns or dependency_hazard_stall) 
      begin
 	casez ({spr_pc_we, except_start, branch_op}) // synopsys parallel_case
 	  {2'b00, `OR1200_BRANCHOP_NOP}: begin
 	     if (!dependency_hazard_stall) begin
-		if (!id_two_insns) begin
+		if (!if_two_insns) begin
 		   pc = {pcreg + 30'd1, 2'b0};
 		end
 		else begin
@@ -226,7 +223,7 @@ reg				wait_lsu;
 `endif
 	       //pc = {pcreg + 30'd1, 2'b0};
 	       if (!dependency_hazard_stall) begin
-		  if (!id_two_insns) begin
+		  if (!if_two_insns) begin
 		     pc = {pcreg + 30'd1, 2'b0};
 		  end
 		  else begin
@@ -247,7 +244,7 @@ reg				wait_lsu;
 `endif
 	       //pc = {pcreg + 30'd1, 2'b0};
 	       if (!dependency_hazard_stall) begin
-		  if (!id_two_insns) begin
+		  if (!if_two_insns) begin
 		     pc = {pcreg + 30'd1, 2'b0};
 		  end
 		  else begin
@@ -329,12 +326,11 @@ reg				wait_lsu;
    //tracing the signal back through a bunch of modules suggests during normal operations that icqmem_rty_o in the ic_top.v is the same signal (while under normal/not error conditions is the opposite of icqmem_ack_o in that same file
    //although genpc_refetch seems to go high two cycles before branch operations - it looks to keep the program counter from incrememnting while if_freeze is asserted
    //genpc_freeze does not seem to be utlized very often/if at all - mostly low
-   //as far as i can tell no_more_dslot is completely useless in the below statement except to make the least significant bit one
+   //not sure if no_more_dslot is necessary in the below logic
    //in the above icpu_adr_o address calculation (no_more_dslot seems to be high for all branch operations) - this causes if_bypass to go high in the if.v file iff if_bypass_reg or if_flushpipe is also high
    //commenting the signal out still causes the processor to pass all tests in simulation so more than likely this is unnecessary
      else if (no_more_dslot | except_start | !genpc_freeze & !icpu_rty_i & !genpc_refetch) begin
 	pcreg_default <=  pc[31:2];
-	id_two_insns_next <= id_two_insns;
      end
 
    always @(pcreg_boot or pcreg_default or pcreg_select)

@@ -61,7 +61,7 @@ module or1200_if(
 	// Internal i/f
 	if_freeze, if_insn, if_pc, if_flushpipe, saving_if_insn, 
 	if_stall, no_more_dslot, genpc_refetch, rfe,
-	except_itlbmiss, except_immufault, except_ibuserr, half_insn_done_i, dependency_hazard_stall
+	except_itlbmiss, except_immufault, except_ibuserr, dependency_hazard_stall
 );
 
 //
@@ -98,7 +98,6 @@ input				rfe;
 output				except_itlbmiss;
 output				except_immufault;
 output				except_ibuserr;
-input    			half_insn_done_i;
 input 	                	dependency_hazard_stall;
  			
 //
@@ -111,12 +110,8 @@ reg	[63:0]		insn_saved; //modified for two insns
 reg	[31:0]		addr_saved;
 reg	[2:0]		err_saved;
 reg			saved;
-/*reg 			half_insn_done; this signal was used when parse happened during fetch cycle
-reg [31:0] 		next_insn;
-reg [31:0] 		next_addr;*/
 	
-//added the !half_insn_done so that another instruction would not be saved if it was in the middle of executing an instruction in a later stage
-assign save_insn = (icpu_ack_i | icpu_err_i) & if_freeze & !saved /*& !half_insn_done_i*/; 
+assign save_insn = (icpu_ack_i | icpu_err_i) & if_freeze & !saved; 
 assign saving_if_insn = !if_flushpipe & save_insn;
 
 //
@@ -132,63 +127,21 @@ always @(posedge clk or `OR1200_RST_EVENT rst)
 //
 // IF stage insn
 //
-//half_insn_done leading to next insn was added to this logic - removed after testing in order to fetch a full insn
-//added back to keep fetching the same insn if half of an instruction is completed
-assign if_insn = no_more_dslot | rfe | if_bypass ? {2{`OR1200_OR32_NOP, 26'h041_0000}} /*: half_insn_done_i ? next_insn*/ : saved ? insn_saved : icpu_ack_i ? icpu_dat_i : {2{`OR1200_OR32_NOP, 26'h061_0000}}; //161 is used for exceptions 
+assign if_insn = no_more_dslot | rfe | if_bypass ? {2{`OR1200_OR32_NOP, 26'h041_0000}} : saved ? insn_saved : icpu_ack_i ? icpu_dat_i : {2{`OR1200_OR32_NOP, 26'h061_0000}}; //161 is used for exceptions 
 //the following is just used for exceptions
 //it has been modified to take into account the possibility of two insns
 assign if_pc = dependency_hazard_stall ? {icpu_adr_i[31:2], 2'h0} : saved ? addr_saved : {icpu_adr_i[31:2], 2'h0};
 //it appears if_stall seems to almost mirror if_freeze
 //primary difference is that if if_freeze is high and an instruction is being saved, than if_stall will be low
 //if_freeze is defined in the freeze.v file
-//in the cases where they don't mirror each other it is due to the fact that the signal waiting_on = "11" which was latched when wait_on="11" and ex_freeze was low
-//wait_on is defined in the ctrl logic based on what the instruction in the decode stage is - it looks like during instruction 0x30 - move to special purpose register this occurs
 //however if_freeze is dependent on if_stall and will also be high if if_stall is high and lsu_unstall is low
 //however if_freeze can go high for other reasons including a lsu_stall
-//half_ins_done was added to this logic to stall the fetching of instructions
-assign if_stall = !icpu_err_i & ((!icpu_ack_i & !saved) /*| half_insn_done_i*/);
-//half_insn_done no longer needed after 2 wide if_insn pushed through
-assign genpc_refetch = (saved /*| half_insn_done_i*/) & icpu_ack_i; //half_ins_done added to this logic to show not ready for next insn
-//I haven't found a reason to change these for two insns yet (three exception lines below) since the two insns will never straddle a page
+assign if_stall = !icpu_err_i & ((!icpu_ack_i & !saved));
+assign genpc_refetch = saved & icpu_ack_i; 
+//I haven't found a reason to change these for two insns yet (three exception lines below) since the second insn will never straddle a page/bus
 assign except_itlbmiss = no_more_dslot ? 1'b0 : saved ? err_saved[0] : icpu_err_i & (icpu_tag_i == `OR1200_ITAG_TE);
 assign except_immufault = no_more_dslot ? 1'b0 : saved ? err_saved[1] : icpu_err_i & (icpu_tag_i == `OR1200_ITAG_PE);
 assign except_ibuserr = no_more_dslot ? 1'b0 : saved ? err_saved[2] : icpu_err_i & (icpu_tag_i == `OR1200_ITAG_BE);
-//Next Insn for two Insns - allows the second half of an insn to be sent through - lefgacy from testing 
-/*always @(posedge clk or `OR1200_RST_EVENT rst) begin
-  if (rst == `OR1200_RST_VALUE) begin
-     half_insn_done <= 1'b0;
-     next_insn <= {`OR1200_OR32_NOP, 26'h141_0000};
-     next_addr <= 32'h4;  //only needed for exceptions
-  end
-  else if (!no_more_dslot & !rfe & !if_bypass) begin
-     if (half_insn_done)
-       half_insn_done <= 1'b0;
-     else if (saved & !if_freeze) begin //if_freeze was added because the instruction did not get latched into id_insn if it is high
-	//checks to see if sending a nop (type 141) that was added by the addition of two insns so as not to increase the PC
-	if (insn_saved[63:32] != {`OR1200_OR32_NOP, 26'h141_0000}) begin
-	   half_insn_done <= 1'b1;
-	   next_insn <= insn_saved[63:32];
-	   next_addr <= addr_saved + 32'h4; //this is only needed for an exception that has to choose which insn caused it
-	end
-     end
-     else if (icpu_ack_i & !if_freeze) begin //if_freeze was added for the same reason as above
-	//same as comment above - checks nop type
-	if (icpu_dat_i[63:32] != {`OR1200_OR32_NOP, 26'h141_0000}) begin
-	   half_insn_done <= 1'b1;
-	   next_insn <= icpu_dat_i[63:32];
-	   next_addr <= {icpu_adr_i[31:2], 2'b00} + 32'h4;  //only needed for exceptions
-	end
-     end
-  end
-  //the following is needed because of the delay slot in the processor
-  //there is the possibility that an instruction is fetched just prior to a branch being executed 
-   //in which case only half of the instruction (the delay slot part) should be executed and the other half ignored
-   //without this, the processor will stall indefinitely or have very strange behavior
-   else if(no_more_dslot & half_insn_done) begin
-      half_insn_done <= 1'b0;
-   end
-   //default value is no change
-end */
    
 //
 // Flag for saved insn/address

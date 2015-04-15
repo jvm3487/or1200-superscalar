@@ -70,7 +70,7 @@ module or1200_except
    clk, rst, 
    
    // Internal i/f
-   sig_ibuserr, sig_dbuserr, sig_illegal, sig_align, sig_range, sig_dtlbmiss, 
+   sig_ibuserr, sig_dbuserr, sig_illegala, sig_illegalc, sig_align, sig_range, sig_dtlbmiss, 
    sig_dmmufault, sig_int, sig_syscall, sig_trap, sig_itlbmiss, sig_immufault, 
    sig_tick, ex_branch_taken, genpc_freeze, id_freeze, ex_freeze, wb_freeze,  
    if_stall,  if_pc, id_pc, ex_pc, wb_pc, id_flushpipe, ex_flushpipe, 
@@ -90,7 +90,8 @@ input				clk;
 input				rst;
 input				sig_ibuserr;
 input				sig_dbuserr;
-input				sig_illegal;
+input				sig_illegala;
+input    			sig_illegalc;
 input				sig_align;
 input				sig_range;
 input				sig_dtlbmiss;
@@ -112,8 +113,7 @@ input				if_stall;
 input	[31:0]		if_pc;
 output	[31:0]		id_pc;
 output  [31:0]      ex_pc;
-output  [31:0]      wb_pc;
-reg  [31:0]      wb_pc2; //for testing   
+output  [31:0]      wb_pc;   
 input	[31:0]		datain;
 input   [`OR1200_DU_DSR_WIDTH-1:0]     du_dsr;
 input   [24:0]                       du_dmr1;
@@ -184,8 +184,7 @@ wire				int_pending;
 wire				tick_pending;
 wire    			fp_pending;
 wire    			range_pending;
-reg 				dsx;
-			
+reg 				dsx;			
 reg trace_trap      ;
 reg ex_freeze_prev;
 reg sr_ted_prev;
@@ -196,7 +195,8 @@ wire dsr_te = ex_freeze_prev ? dsr_te_prev : du_dsr[`OR1200_DU_DSR_TE];
 wire sr_ted = ex_freeze_prev ? sr_ted_prev : sr[`OR1200_SR_TED];
 wire dmr1_st = ex_freeze_prev ? dmr1_st_prev: du_dmr1[`OR1200_DU_DMR1_ST] ;
 wire dmr1_bt = ex_freeze_prev ? dmr1_bt_prev: du_dmr1[`OR1200_DU_DMR1_BT] ;
-
+   reg [31:0] wb_pc2; //used by or1200-monitor 
+   
 //
 // Simple combinatorial logic
 //
@@ -226,11 +226,11 @@ assign range_pending = 0;
    
 // Abort write into RF by load & other instructions   
 assign abort_ex = sig_dbuserr | sig_dmmufault | sig_dtlbmiss | sig_align | 
-		  sig_illegal | ((du_hwbkpt | trace_trap) & ex_pc_val 
+		  sig_illegala | sig_illegalc | ((du_hwbkpt | trace_trap) & ex_pc_val 
 				 & !sr_ted & !dsr_te);
 
 // abort spr read/writes   
-assign abort_mvspr  = sig_illegal | ((du_hwbkpt | trace_trap) & ex_pc_val 
+assign abort_mvspr  = sig_illegala | sig_illegalc | ((du_hwbkpt | trace_trap) & ex_pc_val 
 				     & !sr_ted & !dsr_te) ; 
 assign spr_dat_ppc = ex_two_insns_next ? (wb_pc + 32'h4) : wb_pc;   
    
@@ -243,7 +243,7 @@ assign except_trig = {
 		      ex_exceptflags[1]	& ~du_dsr[`OR1200_DU_DSR_IME],
 		      ex_exceptflags[0]	& ~du_dsr[`OR1200_DU_DSR_IPFE],
 		      ex_exceptflags[2]	& ~du_dsr[`OR1200_DU_DSR_BUSEE],
-		      sig_illegal       & ~du_dsr[`OR1200_DU_DSR_IIE],
+		      (sig_illegala | sig_illegalc)       & ~du_dsr[`OR1200_DU_DSR_IIE],
 		      sig_align		& ~du_dsr[`OR1200_DU_DSR_AE],
 		      sig_dtlbmiss	& ~du_dsr[`OR1200_DU_DSR_DME],
 		      sig_trap		& ~du_dsr[`OR1200_DU_DSR_TE],
@@ -271,7 +271,7 @@ assign except_stop = {
 			ex_exceptflags[1]	& du_dsr[`OR1200_DU_DSR_IME],
 			ex_exceptflags[0]	& du_dsr[`OR1200_DU_DSR_IPFE],
 			ex_exceptflags[2]	& du_dsr[`OR1200_DU_DSR_BUSEE],
-			sig_illegal		& du_dsr[`OR1200_DU_DSR_IIE],
+			(sig_illegala | sig_illegalc)		& du_dsr[`OR1200_DU_DSR_IIE],
 			sig_align		& du_dsr[`OR1200_DU_DSR_AE],
 			sig_dtlbmiss		& du_dsr[`OR1200_DU_DSR_DME],
 			sig_dmmufault		& du_dsr[`OR1200_DU_DSR_DPFE],
@@ -446,13 +446,12 @@ end
 always @(posedge clk or `OR1200_RST_EVENT rst) begin
 	if (rst == `OR1200_RST_VALUE) begin
 	   wb_pc <=  32'd0;
-	   //for testing
-	   wb_pc2 <= 32'd0;
-           dl_pc <=  32'd0;
+           wb_pc2 <= 32'd0;
+	   dl_pc <=  32'd0;
 	end
 	else if (!wb_freeze) begin
 	   wb_pc <=  ex_pc;
-	   wb_pc2 <= ex_pc + 32'h4;
+	   wb_pc2 <= (ex_pc + 32'h4);
            dl_pc <=  wb_pc;
 	end
 end
@@ -530,9 +529,9 @@ assign except_flushpipe = |except_trig & ~|state;
 `ifdef OR1200_EXCEPT_ILLEGAL
 		    14'b00_01??_????_????: begin
 		       except_type <=  `OR1200_EXCEPT_ILLEGAL;
-		       eear <=  ex_pc;
+		       eear <=  sig_illegalc ? (ex_pc + 32'h4) : ex_pc;
 		       epcr <=  ex_dslot ? 
-			       wb_pc : ex_pc;
+			       wb_pc : sig_illegalc ? (ex_pc + 32'h4) : ex_pc;
 		       dsx <= ex_dslot;
 		    end
 `endif
@@ -607,7 +606,6 @@ assign except_flushpipe = |except_trig & ~|state;
 `ifdef OR1200_EXCEPT_FLOAT
 		    14'b00_0000_0000_01??: begin
 		       except_type <=  `OR1200_EXCEPT_FLOAT;
-		       //epcr <=  id_pc;
 		       if (!half_insn_done)
 			 epcr <=  id_pc;
 		       else
@@ -618,7 +616,6 @@ assign except_flushpipe = |except_trig & ~|state;
 `ifdef OR1200_EXCEPT_INT
 		    14'b00_0000_0000_001?: begin
 		       except_type <=  `OR1200_EXCEPT_INT;
-		       //epcr <=  id_pc;
 		       if (!half_insn_done)
 			 epcr <=  id_pc;
 		       else
