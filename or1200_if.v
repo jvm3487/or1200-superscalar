@@ -61,7 +61,7 @@ module or1200_if(
 	// Internal i/f
 	if_freeze, if_insn, if_pc, if_flushpipe, saving_if_insn, 
 	if_stall, no_more_dslot, genpc_refetch, rfe,
-	except_itlbmiss, except_immufault, except_ibuserr, half_insn_done_i
+	except_itlbmiss, except_immufault, except_ibuserr, half_insn_done_i, dependency_hazard_stall
 );
 
 //
@@ -98,7 +98,8 @@ input				rfe;
 output				except_itlbmiss;
 output				except_immufault;
 output				except_ibuserr;
-input 			half_insn_done_i;
+input    			half_insn_done_i;
+input 	                	dependency_hazard_stall;
  			
 //
 // Internal wires and regs
@@ -136,7 +137,7 @@ always @(posedge clk or `OR1200_RST_EVENT rst)
 assign if_insn = no_more_dslot | rfe | if_bypass ? {2{`OR1200_OR32_NOP, 26'h041_0000}} /*: half_insn_done_i ? next_insn*/ : saved ? insn_saved : icpu_ack_i ? icpu_dat_i : {2{`OR1200_OR32_NOP, 26'h061_0000}}; //161 is used for exceptions 
 //the following is just used for exceptions
 //it has been modified to take into account the possibility of two insns
-assign if_pc = /*half_insn_done? next_addr :*/ saved ? addr_saved : {icpu_adr_i[31:2], 2'h0};
+assign if_pc = dependency_hazard_stall ? {icpu_adr_i[31:2], 2'h0} : saved ? addr_saved : {icpu_adr_i[31:2], 2'h0};
 //it appears if_stall seems to almost mirror if_freeze
 //primary difference is that if if_freeze is high and an instruction is being saved, than if_stall will be low
 //if_freeze is defined in the freeze.v file

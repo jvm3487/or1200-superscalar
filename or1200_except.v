@@ -79,7 +79,7 @@ module or1200_except
    spr_dat_npc, datain, du_dsr, epcr_we, eear_we, esr_we, pc_we, epcr, eear, 
    du_dmr1, du_hwbkpt, du_hwbkpt_ls_r, esr, sr_we, to_sr, sr, lsu_addr, 
    abort_ex, icpu_ack_i, icpu_err_i, dcpu_ack_i, dcpu_err_i, sig_fp, fpcsr_fpee,
-   dsx, ex_two_insns, ex_two_insns_next
+   dsx, ex_two_insns, ex_two_insns_next, half_insn_done
    
 );
 
@@ -152,6 +152,7 @@ input				dcpu_err_i;
 output 			        dsx;
 input   			ex_two_insns;
 input 	         		ex_two_insns_next;
+input 	         		half_insn_done;
  			
    
 //
@@ -417,7 +418,10 @@ always @(posedge clk or `OR1200_RST_EVENT rst) begin
 	end
 	else if (!ex_freeze & id_freeze) begin
 		ex_dslot <=  1'b0;
-		ex_pc <=  id_pc;
+	   if (!half_insn_done)
+	     ex_pc <=  id_pc;
+	   else
+	     ex_pc <= (ex_pc + 32'h4);
                 ex_pc_val <=  id_pc_val ;
 		ex_exceptflags <=  3'b000;
 		delayed1_ex_dslot <=  ex_dslot;
@@ -425,7 +429,10 @@ always @(posedge clk or `OR1200_RST_EVENT rst) begin
 	end
 	else if (!ex_freeze) begin
 		ex_dslot <=  ex_branch_taken;
-		ex_pc <=  id_pc;
+	   if (!half_insn_done)
+	     ex_pc <=  id_pc;
+	   else
+	     ex_pc <= (ex_pc + 32'h4);
                 ex_pc_val <=  id_pc_val ;
 		ex_exceptflags <=  id_exceptflags;
 		delayed1_ex_dslot <=  ex_dslot;
@@ -600,21 +607,32 @@ assign except_flushpipe = |except_trig & ~|state;
 `ifdef OR1200_EXCEPT_FLOAT
 		    14'b00_0000_0000_01??: begin
 		       except_type <=  `OR1200_EXCEPT_FLOAT;
-		       epcr <=  id_pc;
+		       //epcr <=  id_pc;
+		       if (!half_insn_done)
+			 epcr <=  id_pc;
+		       else
+			 epcr <= (ex_pc + 32'h4);
 		       dsx <= ex_dslot;
 		    end
 `endif
 `ifdef OR1200_EXCEPT_INT
 		    14'b00_0000_0000_001?: begin
 		       except_type <=  `OR1200_EXCEPT_INT;
-		       epcr <=  id_pc;
+		       //epcr <=  id_pc;
+		       if (!half_insn_done)
+			 epcr <=  id_pc;
+		       else
+			 epcr <= (ex_pc + 32'h4);
 		       dsx <= ex_dslot;
 		    end
 `endif
 `ifdef OR1200_EXCEPT_TICK
 		    14'b00_0000_0000_0001: begin
 		       except_type <=  `OR1200_EXCEPT_TICK;
-		       epcr <=  id_pc;
+		       if (!half_insn_done)
+			 epcr <=  id_pc;
+		       else
+			 epcr <= (ex_pc + 32'h4);
 		       dsx <= ex_dslot;
 		    end
 `endif

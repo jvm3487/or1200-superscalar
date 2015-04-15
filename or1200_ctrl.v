@@ -64,7 +64,7 @@ module or1200_ctrl
    id_branch_op, ex_branch_op, ex_branch_taken, pc_we, 
    rf_addra, rf_addrb, rf_addrc, rf_addrd, rf_rda, rf_rdb, rf_rdc, rf_rdd, alu_op, alu_op2, alu_opc_out, alu_op2c, mac_op,
    comp_op, comp_opc, rf_addrw, rf_addrw2, rfwb_op, rfwb_op2, fpu_op,
-   wb_insn, id_simma, id_simmc, ex_simm, ex_two_insns, ex_two_insns_next, abort_ex, /*id_branch_addrtarget,*/ ex_branch_addrtarget, sel_a,
+   wb_insn, id_simma, id_simmc, ex_simm, ex_two_insns, ex_two_insns_next, id_two_insns, /*id_two_insns_next,*/ dependency_hazard_stall, abort_ex, /*id_branch_addrtarget,*/ ex_branch_addrtarget, sel_a,
    sel_b, sel_c, sel_d, id_lsu_op,
    cust5_op, cust5_limm, cust5_opc, cust5_limmc, id_pc, ex_pc, du_hwbkpt, 
    multicycle, wait_on, wbforw_valid, wbforw_valid2, sig_syscall, sig_trap,
@@ -136,6 +136,10 @@ output  [31:0] 			        id_simmc;
 output	[31:0]				ex_simm;
 output  				ex_two_insns;
 output   				ex_two_insns_next;
+output  				id_two_insns;
+   //output 				id_two_insns_next;
+   
+output  				dependency_hazard_stall;	
 reg     				ex_two_insns_next;   
 input    				abort_ex;
    
@@ -342,7 +346,10 @@ reg 					system_stall;
    reg [`OR1200_COMPOP_WIDTH-1:0] comp_op_next;
    reg sig_trap_next;
    reg ex_two_insns;
- 
+   wire id_two_insns;
+   //reg 	id_two_insns_next;
+   
+   
 // used for testing   
 reg [31:0] ex_insn_intermediate;
    
@@ -421,7 +428,8 @@ assign cust5_limmc = ex_insn[42:37];
 //
 //
 //
-assign rfe = (id_branch_op == `OR1200_BRANCHOP_RFE) | (ex_branch_op == `OR1200_BRANCHOP_RFE);
+// ensures that a return from exception clears the pipeline while still allowing the rfe instruction to enter the id stage in case of a data dependency stall
+assign rfe = (((id_branch_opa == `OR1200_BRANCHOP_RFE) |  (id_branch_opc == `OR1200_BRANCHOP_RFE)) & !half_insn_done) | (ex_branch_opc == `OR1200_BRANCHOP_RFE) | (ex_branch_op == `OR1200_BRANCHOP_RFE);
 
 //As far as I can tell, this is only needed for a certain simulator, so I did not modify it   
 `ifdef verilator
@@ -481,19 +489,32 @@ assign half_insn_done_next_o = half_insn_done_next;
    else
      if_insn_intermediate <= if_insn;
 end*/
+//This is really if_two_insns but don't want to change it until I'm sure it works
+assign id_two_insns = (if_insn[63:58] != `OR1200_OR32_NOP | !if_insn[48]) ? 1'b1 : 1'b0;
 
+assign dependency_hazard_stall = ((|data_dependent) | multiply_stall | load_or_store_stall | fpu_hazard_stall | branch_hazard_stall | wait_hazard_stall | multicycle_hazard_stall | system_stall);
+  
+   
 always @(posedge clk or `OR1200_RST_EVENT rst) begin
 	if (rst == `OR1200_RST_VALUE) begin //modified to make nops type 141
 	   id_insn <= {2{`OR1200_OR32_NOP, 26'h141_0000}};
+	   //id_two_insns <= 1'b0;
 	end
         else if (id_flushpipe) begin
            id_insn <= {2{`OR1200_OR32_NOP, 26'h141_0000}};
+	   //id_two_insns <= 1'b0;
 	end
-	else if (!id_freeze & ((|data_dependent) | multiply_stall | load_or_store_stall | fpu_hazard_stall | branch_hazard_stall | wait_hazard_stall | multicycle_hazard_stall | system_stall))
-	  id_insn <= {2{`OR1200_OR32_NOP, 26'h141_0000}};
+	else if (!id_freeze & ((|data_dependent) | multiply_stall | load_or_store_stall | fpu_hazard_stall | branch_hazard_stall | wait_hazard_stall | multicycle_hazard_stall | system_stall)) begin
+	   id_insn <= {2{`OR1200_OR32_NOP, 26'h141_0000}};
+	   //id_two_insns <= 1'b0;
+	end
 	else if (!id_freeze) begin
 	   id_insn <= if_insn;
-	 
+	   /*if ((if_insn[63:58] != `OR1200_OR32_NOP) | !if_insn[48]) 
+	     id_two_insns <= 1'b1;
+	   else
+	     id_two_insns <= 1'b0;*/
+	   
 `ifdef OR1200_VERBOSE
 // synopsys translate_off
 		$display("%t: id_insn <= %h", $time, if_insn);
@@ -599,9 +620,12 @@ end
 
 //structural hazard check for Branch Unit (genpc)
 //only need to stall if second insn is a branch because other ALU can handle normal dslot instruction
-always @(id_branch_opa or id_branch_opc) begin
-   id_branch_op <= id_branch_opa;
-   if (id_branch_opc != `OR1200_BRANCHOP_NOP) 
+always @(id_branch_opa or id_branch_opc or id_insn) begin
+   if (id_insn[31:26] != `OR1200_OR32_NOP | !id_insn[16])
+     id_branch_op <= id_branch_opa;
+   else
+     id_branch_op <= `OR1200_BRANCHOP_NOP;
+   if ((id_branch_opc != `OR1200_BRANCHOP_NOP) & ((id_insn[63:58] != `OR1200_OR32_NOP) | !id_insn[48])) 
      branch_hazard_stall <= 1'b1;
    else
      branch_hazard_stall <= 1'b0; 
@@ -676,7 +700,7 @@ always @(posedge clk or `OR1200_RST_EVENT rst) begin
 	   //half insn done used for data or structural hazard - second case is to handle delay slot if it occurs in the second half of instruction
 	   if (!half_insn_done /*| (half_insn_done & no_more_dslot)*/) begin
 	      //added to keep half_insn_done staying high in the second case
-	      if (same_stage_dslot | ex_two_insns) begin
+	      if (same_stage_dslot /*| ex_two_insns*/) begin
 		 ex_insn <= {2{`OR1200_OR32_NOP, 26'h141_0000}};
 	      end
 	      else if (previous_stage_dslot) begin
@@ -729,7 +753,16 @@ always @(posedge clk or `OR1200_RST_EVENT rst) begin
 	end
 end
 
-
+//id_insn_next
+/*always @(posedge clk or `OR1200_RST_EVENT rst) begin
+  if ((rst == `OR1200_RST_VALUE) | id_flushpipe) begin
+     id_two_insns_next <= 1'b0;
+  end
+  else begin
+     id_two_insns_next <= id_two_insns_next;
+  end
+end*/   
+   
 //chooses between first and second insn during testing phase
 always @(posedge clk or `OR1200_RST_EVENT rst) begin
   if ((rst == `OR1200_RST_VALUE) | id_flushpipe) begin
@@ -739,7 +772,7 @@ always @(posedge clk or `OR1200_RST_EVENT rst) begin
      no_more_dslot_next_next <= 1'b0;
      same_stage_dslot_next <= 1'b0;
      ex_two_insns_next <= 1'b0;
-     
+     //id_two_insns_next <= 1'b0;
   end
   else if (!ex_freeze) begin
      half_insn_done_next <= half_insn_done;
@@ -748,6 +781,7 @@ always @(posedge clk or `OR1200_RST_EVENT rst) begin
      no_more_dslot_next_next <= no_more_dslot_next;
      same_stage_dslot_next <= same_stage_dslot;     
      ex_two_insns_next <= ex_two_insns;
+     //id_two_insns_next <= id_two_insns_next;
      
      //if (!id_freeze) begin
      

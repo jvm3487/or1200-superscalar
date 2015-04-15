@@ -379,6 +379,10 @@ wire				abort_ex;
 wire				abort_mvspr;
 wire     			ex_two_insns;
 wire     			ex_two_insns_next;
+wire     			id_two_insns;   
+//wire 	         		id_two_insns_next;
+			
+wire    			dependency_hazard_stall;
    
 			
 //The below signal was only used for testing
@@ -499,7 +503,10 @@ or1200_genpc #(.boot_adr(boot_adr)) or1200_genpc(
 	.genpc_freeze(genpc_freeze),
 	.no_more_dslot(no_more_dslot),
 	.lsu_stall(lsu_stall),
-	.ex_two_insns(ex_two_insns)			 
+	.ex_two_insns(ex_two_insns),
+	.id_two_insns(id_two_insns),
+	//.id_two_insns_next(id_two_insns_next),
+	.dependency_hazard_stall(dependency_hazard_stall)		 
 );
 
 //
@@ -525,7 +532,8 @@ or1200_if or1200_if(
 	.except_itlbmiss(except_itlbmiss),
 	.except_immufault(except_immufault),
 	.except_ibuserr(except_ibuserr),
-	.half_insn_done_i(half_insn_done)
+	.half_insn_done_i(half_insn_done),
+	.dependency_hazard_stall(dependency_hazard_stall)
 );
 //
 // Instantiation of instruction decode/control logic
@@ -578,7 +586,10 @@ or1200_ctrl or1200_ctrl(
 	.ex_simm(ex_simm),
 	.ex_two_insns(ex_two_insns),
 	.ex_two_insns_next(ex_two_insns_next),
-        .abort_ex(abort_ex),
+        .id_two_insns(id_two_insns),
+	//.id_two_insns_next(id_two_insns_next),
+        .dependency_hazard_stall(dependency_hazard_stall),
+	.abort_ex(abort_ex),
 	.sel_a(sel_a),
 	.sel_b(sel_b),
 	.sel_c(sel_c),
@@ -1145,7 +1156,8 @@ or1200_except or1200_except(
 	.abort_ex(abort_ex),
 	.dsx(dsx),
 	.ex_two_insns(ex_two_insns),
-	.ex_two_insns_next(ex_two_insns_next)
+	.ex_two_insns_next(ex_two_insns_next),
+	.half_insn_done(half_insn_done)
 );
 
 //
