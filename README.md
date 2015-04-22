@@ -4,7 +4,7 @@ The goal of this project is to make the existing or1200 core superscalar (comple
 Currently, the processor has the ability to execute two insns at a time except for certain instances of stalls (asserts dependency_hazard_stall signal in or1200_ctrl.v to account for both structural and data dependency hazards).
 
 Current changes include:
-- Modify instruction cache to contain 64 bits per block (2 instructions)
+- Modify instruction cache to contain 16 bytes per block (4 instructions)
 - Modify instruction cache to output two insns if available in one cycle
 - Modify instruction fetch to fetch two instructions
 - Add or1200_ctrl_if_decode to take all the logic needed in instruction fetch stage to be used for both instructions
