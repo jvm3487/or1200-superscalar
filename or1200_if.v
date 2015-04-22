@@ -61,7 +61,7 @@ module or1200_if(
 	// Internal i/f
 	if_freeze, if_insn, if_pc, if_flushpipe, saving_if_insn, 
 	if_stall, no_more_dslot, genpc_refetch, rfe,
-	except_itlbmiss, except_immufault, except_ibuserr, dependency_hazard_stall
+	except_itlbmiss, except_immufault, except_ibuserr, dependency_hazard_stall, same_stage_dslot
 );
 
 //
@@ -99,7 +99,9 @@ output				except_itlbmiss;
 output				except_immufault;
 output				except_ibuserr;
 input 	                	dependency_hazard_stall;
- 			
+input   			same_stage_dslot;
+			
+ 
 //
 // Internal wires and regs
 //
@@ -136,7 +138,7 @@ assign if_pc = dependency_hazard_stall ? {icpu_adr_i[31:2], 2'h0} : saved ? addr
 //if_freeze is defined in the freeze.v file
 //however if_freeze is dependent on if_stall and will also be high if if_stall is high and lsu_unstall is low
 //however if_freeze can go high for other reasons including a lsu_stall
-assign if_stall = !icpu_err_i & ((!icpu_ack_i & !saved));
+assign if_stall = !icpu_err_i & !icpu_ack_i & !saved & !same_stage_dslot; //last added because no need to worry about cache miss if its not going to be executed anyway - this is not the case if its a previous_stage_dslot because then that instruction would be executed 
 assign genpc_refetch = saved & icpu_ack_i; 
 //I haven't found a reason to change these for two insns yet (three exception lines below) since the second insn will never straddle a page/bus
 assign except_itlbmiss = no_more_dslot ? 1'b0 : saved ? err_saved[0] : icpu_err_i & (icpu_tag_i == `OR1200_ITAG_TE);

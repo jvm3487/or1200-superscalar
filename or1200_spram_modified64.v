@@ -159,13 +159,7 @@ module or1200_spram_modified64
 	   doq_intermediate[(dw/8)-1:dw/16] <= {(dw/16){1'b0}};
 	   doq_intermediate[(dw/16)-1:0] <= mem[addr_reg[aw-1:4]][dw-1:(15*dw)/16];
 	end
-/*if (addr_reg[0] == 1'b1) begin //fetched in the middle of cache block
-	 doq_intermediate[(dw/2)-1:0] = mem[addr_reg[aw-1:1]][(dw-1):(dw/2)];
-	 doq_intermediate[dw-1:dw/2] = {(dw/2){1'b0}}; //upper half is all zeros
-      end
-      else begin
-	 doq_intermediate = mem[addr_reg[aw-1:1]];
-      end*/
+	
       endcase // case ({addr_reg[1], addr_reg[0]})
    end
    //

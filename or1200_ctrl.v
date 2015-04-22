@@ -70,7 +70,7 @@ module or1200_ctrl
    multicycle, wait_on, wbforw_valid, wbforw_valid2, sig_syscall, sig_trap,
    force_dslot_fetch, no_more_dslot, id_void, ex_void, ex_spr_read, 
    ex_spr_write, 
-   id_macrc_op, ex_macrc_op, rfe, except_illegala, except_illegalc, dc_no_writethrough, data_dependent, half_insn_done, half_insn_done_next
+   id_macrc_op, ex_macrc_op, rfe, except_illegala, except_illegalc, dc_no_writethrough, data_dependent, half_insn_done, half_insn_done_next, same_stage_dslot
    );
 
 //
@@ -156,6 +156,7 @@ output  				dc_no_writethrough;
 output   				half_insn_done;  
 output 	                 		half_insn_done_next;
 output [`OR1200_REGFILE_ADDR_WIDTH-1:0] 	rf_addrw2;	
+output 					same_stage_dslot;
    
 				
 //
@@ -217,7 +218,6 @@ output [`OR1200_REGFILE_ADDR_WIDTH-1:0] 	rf_addrw2;
    wire [`OR1200_MULTICYCLE_WIDTH-1:0] 		multicyclea;
    wire [`OR1200_WAIT_ON_WIDTH-1:0] 		wait_ona;   
    wire [`OR1200_REGFILE_ADDR_WIDTH-1:0] 	rf_addrwa;
-   wire 					except_illegala;
    wire [`OR1200_ALUOP_WIDTH-1:0] 		alu_opa;
    wire [`OR1200_ALUOP2_WIDTH-1:0] 		alu_op2a;
    wire 					spr_reada;
@@ -238,7 +238,6 @@ output [`OR1200_REGFILE_ADDR_WIDTH-1:0] 	rf_addrw2;
    wire [`OR1200_MULTICYCLE_WIDTH-1:0] 		multicyclec;
    wire [`OR1200_WAIT_ON_WIDTH-1:0] 		wait_onc;   
    wire [`OR1200_REGFILE_ADDR_WIDTH-1:0] 	rf_addrwc;
-   wire 					except_illegalc;
    wire [`OR1200_ALUOP_WIDTH-1:0] 		alu_opc;
    wire [`OR1200_ALUOP2_WIDTH-1:0] 		alu_op2c;
    reg [`OR1200_ALUOP_WIDTH-1:0] 		alu_opc_out;
@@ -295,8 +294,11 @@ output [`OR1200_REGFILE_ADDR_WIDTH-1:0] 	rf_addrw2;
    reg [31:0] 					ex_insn_intermediate;
    wire 					same_stage_dslot;
    wire 					previous_stage_dslot;
+   wire 					except_illegala_inter;
+   wire 					except_illegalc_inter;
+   reg 						except_illegala;
+   reg 						except_illegalc;
    
-
 //
 // Force fetch of delay slot instruction when jump/branch is preceeded by 
 // load/store instructions
@@ -421,13 +423,13 @@ assign dependency_hazard_stall = ((|data_dependent) | multiply_stall | load_or_s
    
 //data dependency check of two insns in the same stage of pipeline   
 always @(*) begin
-   if (((id_insn[31:26] == `OR1200_OR32_JAL) | (id_insn[31:26] == `OR1200_OR32_JALR)) & ((id_insn[52:48] == 5'd9) | ((id_insn[47:43] == 5'd9) & !sel_immc)) & (id_insn[63:58] != `OR1200_OR32_NOP)) begin
+   if (((id_insn[31:26] == `OR1200_OR32_JAL) | (id_insn[31:26] == `OR1200_OR32_JALR)) & ((id_insn[52:48] == 5'd9) | ((id_insn[47:43] == 5'd9) & !sel_immc)) & (id_insn[63:58] != `OR1200_OR32_NOP) & !no_more_dslot) begin //dslot logic needed to keep from stalling for no reason
       if (id_insn[52:48] == 5'd9)
 	data_dependent <= 2'd1;
       else
 	data_dependent <= 2'd2;
    end
-   else if (((id_insn[25:21] == id_insn[52:48]) | ((id_insn[25:21] == id_insn[47:43]) & !sel_immc)) & (id_insn[63:58] != `OR1200_OR32_NOP)) begin
+   else if (((id_insn[25:21] == id_insn[52:48]) | ((id_insn[25:21] == id_insn[47:43]) & !sel_immc)) & (id_insn[63:58] != `OR1200_OR32_NOP) & !no_more_dslot) begin //dslot logic needed to keep from stalling for no reason
       case (id_insn[31:26])
 	`OR1200_OR32_MOVHI, `OR1200_OR32_MFSPR, `OR1200_OR32_LWZ, `OR1200_OR32_LWS, `OR1200_OR32_LBZ, `OR1200_OR32_LBS,`OR1200_OR32_LHZ, `OR1200_OR32_LHS, `OR1200_OR32_ADDI, `OR1200_OR32_ADDIC, `OR1200_OR32_ANDI, `OR1200_OR32_ORI,
 `ifdef OR1200_MULT_IMPLEMENTED
@@ -457,54 +459,54 @@ always @(*) begin
 end
 
 //structural hazard check for MAC unit
-always @(id_macrc_opa or id_macrc_opc or id_insn or half_insn_done or id_macrc_op_next) begin
-   if ((id_macrc_opa | id_macrc_opc)  & ((id_insn[63:58] != `OR1200_OR32_NOP) | !id_insn[48])) begin
+always @(id_macrc_opa or id_macrc_opc or id_insn or half_insn_done or id_macrc_op_next or same_stage_dslot or no_more_dslot) begin //dslot logic needed to keep from stalling for no reason
+   if (((id_macrc_opa & !same_stage_dslot)| (id_macrc_opc & !no_more_dslot))  & (id_insn[63:58] != `OR1200_OR32_NOP)) begin
       multiply_stall <= 1'b1;
-      if (id_macrc_opa)
-	id_macrc_op <= 1'b1;
-      else
-	id_macrc_op <= 1'b0;
+      id_macrc_op <= 1'b1;
    end
    else begin
       multiply_stall <= 1'b0;
       if (!half_insn_done)
-	id_macrc_op <= id_macrc_opa;
+	if (!same_stage_dslot)
+	  id_macrc_op <= id_macrc_opa;
+	else
+	  id_macrc_op <= 1'b0;
       else
 	id_macrc_op <= id_macrc_op_next;
    end 
 end 
 
 //structural hazard check for LSU
-always @(id_lsu_opa or id_lsu_opc or id_insn or half_insn_done or id_lsu_op_next) begin
-   if (((id_lsu_opa != `OR1200_LSUOP_NOP)  & ((id_insn[63:58] != `OR1200_OR32_NOP) | !id_insn[48])) | (id_lsu_opc != `OR1200_LSUOP_NOP)) begin
+always @(id_lsu_opa or id_lsu_opc or id_insn or half_insn_done or id_lsu_op_next or same_stage_dslot or no_more_dslot) begin //dslot logic needed to keep from stalling for no reason
+   if (((id_lsu_opa != `OR1200_LSUOP_NOP)  & (id_insn[63:58] != `OR1200_OR32_NOP) & !same_stage_dslot) | ((id_lsu_opc != `OR1200_LSUOP_NOP) & !no_more_dslot)) begin
       load_or_store_stall <= 1'b1;
-      if (id_lsu_opa)
-	id_lsu_op <= id_lsu_opa;
-      else
-	id_lsu_op <= `OR1200_LSUOP_NOP;
+      id_lsu_op <= id_lsu_opa;
    end
    else begin
       load_or_store_stall <= 1'b0;
-      if (!half_insn_done) 
-	id_lsu_op <= id_lsu_opa;
+      if (!half_insn_done)
+	if (!same_stage_dslot)
+	  id_lsu_op <= id_lsu_opa;
+	else
+	  id_lsu_op <= `OR1200_LSUOP_NOP;
       else
 	id_lsu_op <= id_lsu_op_next;
    end 
 end
 
 //structural hazard check for FPU
-always @(fpu_opa or fpu_opc or id_insn or half_insn_done or fpu_op_next) begin
-   if (((fpu_opa[`OR1200_FPUOP_WIDTH-1])  & ((id_insn[63:58] != `OR1200_OR32_NOP) | !id_insn[48])) | (fpu_opc[`OR1200_FPUOP_WIDTH-1])) begin
+always @(fpu_opa or fpu_opc or id_insn or half_insn_done or fpu_op_next or same_stage_dslot or no_more_dslot) begin
+   if (((fpu_opa[`OR1200_FPUOP_WIDTH-1])  & (id_insn[63:58] != `OR1200_OR32_NOP) & !same_stage_dslot) | (fpu_opc[`OR1200_FPUOP_WIDTH-1] & !no_more_dslot)) begin //dslot logic needed to keep from stalling for no reason
       fpu_hazard_stall <= 1'b1;
-      if ((fpu_opa[`OR1200_FPUOP_WIDTH-1]))
-	fpu_op <= fpu_opa;
-      else
-	fpu_op <= {`OR1200_FPUOP_WIDTH{1'b0}};
+      fpu_op <= fpu_opa;
    end
    else begin
       fpu_hazard_stall <= 1'b0;
       if (!half_insn_done)
-	fpu_op <= fpu_opa;
+	if (!same_stage_dslot)
+	  fpu_op <= fpu_opa;
+	else
+	  fpu_op <= {`OR1200_FPUOP_WIDTH{1'b0}};
       else
 	fpu_op <= fpu_op_next;
    end 
@@ -512,12 +514,12 @@ end
 
 //structural hazard check for Branch Unit (genpc)
 //only need to stall if second insn is a branch because other ALU can handle normal dslot instruction
-always @(id_branch_opa or id_branch_opc or id_insn) begin
-   if (id_insn[31:26] != `OR1200_OR32_NOP | !id_insn[16])
+always @(id_branch_opa or id_branch_opc or id_insn or same_stage_dslot or no_more_dslot) begin
+   if ((id_insn[31:26] != `OR1200_OR32_NOP) & !same_stage_dslot) //dslot logic needed to keep from stalling for no reason
      id_branch_op <= id_branch_opa;
    else
      id_branch_op <= `OR1200_BRANCHOP_NOP;
-   if ((id_branch_opc != `OR1200_BRANCHOP_NOP) & ((id_insn[63:58] != `OR1200_OR32_NOP) | !id_insn[48])) 
+   if ((id_branch_opc != `OR1200_BRANCHOP_NOP) & (id_insn[63:58] != `OR1200_OR32_NOP) & !no_more_dslot) 
      branch_hazard_stall <= 1'b1;
    else
      branch_hazard_stall <= 1'b0; 
@@ -525,44 +527,45 @@ end
 
 //stall due to waiting on one of the structures to conclude
 //this includes multiplication, lsu, fpu, or move to spr when dc writethrough
-always @(wait_ona or wait_onc or id_insn or half_insn_done or wait_on_next) begin
-   if (((wait_ona != `OR1200_WAIT_ON_NOTHING) & ((id_insn[63:58] != `OR1200_OR32_NOP) | !id_insn[48])) | (wait_onc != `OR1200_WAIT_ON_NOTHING)) begin
+always @(wait_ona or wait_onc or id_insn or half_insn_done or wait_on_next or same_stage_dslot or no_more_dslot) begin
+   if (((wait_ona != `OR1200_WAIT_ON_NOTHING) & (id_insn[63:58] != `OR1200_OR32_NOP) & !same_stage_dslot) | ((wait_onc != `OR1200_WAIT_ON_NOTHING) & !no_more_dslot)) begin //dslot logic needed to keep from stalling for no reason
       wait_hazard_stall <= 1'b1;
-      if ((wait_ona != `OR1200_WAIT_ON_NOTHING))
-	wait_on <= wait_ona;
-      else
-	wait_on <= `OR1200_WAIT_ON_NOTHING;
+      wait_on <= wait_ona;
    end
    else begin
       wait_hazard_stall <= 1'b0;
       if (!half_insn_done)
-	wait_on <= wait_ona;
+	if (!same_stage_dslot)
+	  wait_on <= wait_ona;
+	else
+	  wait_on <= `OR1200_WAIT_ON_NOTHING;
       else
 	wait_on <= wait_on_next;
    end 
 end 
  
 //stall due to return from exception or move from special purpose register  
-always @(multicyclea or multicyclec or id_insn or half_insn_done or multicycle_next) begin
-   if (((multicyclea != `OR1200_ONE_CYCLE) & ((id_insn[63:58] != `OR1200_OR32_NOP) | !id_insn[48])) | (multicyclec != `OR1200_ONE_CYCLE)) begin
+//added the !id_insn[48] to make sure no instructions are executed after a RFE
+always @(multicyclea or multicyclec or id_insn or half_insn_done or multicycle_next or same_stage_dslot or no_more_dslot) begin
+   if (((multicyclea != `OR1200_ONE_CYCLE) & ((id_insn[63:58] != `OR1200_OR32_NOP) | (!id_insn[48] & (id_insn[31:26] == `OR1200_OR32_RFE))) & !same_stage_dslot) | ((multicyclec != `OR1200_ONE_CYCLE) & !no_more_dslot)) begin //dslot logic needed to keep from stalling for no reason
       multicycle_hazard_stall <= 1'b1;
-      if ((multicyclea != `OR1200_ONE_CYCLE))
-	multicycle <= multicyclea;
-      else
-	multicycle <= `OR1200_ONE_CYCLE;
+      multicycle <= multicyclea;
    end
    else begin
       multicycle_hazard_stall <= 1'b0;
       if (!half_insn_done)
-	multicycle <= multicyclea;
+	if (!same_stage_dslot)
+	  multicycle <= multicyclea;
+	else
+	  multicycle <= `OR1200_ONE_CYCLE;
       else
 	multicycle <= multicycle_next;
    end 
 end
 
 //stall due to system call or trap  
-always @(id_insn or du_hwbkpt) begin
-   if (((id_insn[31:26] == `OR1200_OR32_XSYNC)  & ((id_insn[63:58] != `OR1200_OR32_NOP) | !id_insn[48])) | (id_insn[63:58] == `OR1200_OR32_XSYNC) | du_hwbkpt) begin
+always @(id_insn or du_hwbkpt or same_stage_dslot or no_more_dslot) begin
+   if (((id_insn[31:26] == `OR1200_OR32_XSYNC)  & (id_insn[63:58] != `OR1200_OR32_NOP) & !same_stage_dslot) | ((id_insn[63:58] == `OR1200_OR32_XSYNC) & !no_more_dslot) | du_hwbkpt) begin //dslot logic needed to keep from stalling for no reason
       system_stall <= 1'b1;
    end
    else begin
@@ -677,6 +680,7 @@ always @(posedge clk or `OR1200_RST_EVENT rst) begin
      ex_branch_op_next <= ex_branch_opc;
      ex_simm_next <= ex_simmc;
      ex_branch_addrtarget_next <= ex_branch_addrtargetc;
+     except_illegal_next <= except_illegalc;
      
   end
 end // always @ (posedge clk or `OR1200_RST_EVENT rst)
@@ -701,7 +705,8 @@ always @(*) begin
       sig_trap <= sig_trap_next;
       alu_op <= alu_op_next;      
       rfwb_op <= rfwb_op_next;
-            
+      except_illegala <= except_illegal_next;
+      
    end
 
    //Normal instruction
@@ -725,7 +730,8 @@ always @(*) begin
 	 sig_trap <= sig_trapa;
 	 alu_op <= alu_opa;
 	 rfwb_op <= rfwb_opa;
-      
+	 except_illegala <= except_illegala_inter;
+			   
       end 
       else begin
 	 ex_macrc_op <= 1'b0;
@@ -738,6 +744,8 @@ always @(*) begin
 	 sig_trap <= 1'b0;
 	 alu_op <= `OR1200_ALUOP_NOP;
 	 rfwb_op <= `OR1200_RFWBOP_NOP;
+	 except_illegala <= 1'b0;
+	 
       end
    end
 
@@ -746,12 +754,14 @@ always @(*) begin
       alu_opc_out <= alu_opc;
       rfwb_op2 <= rfwb_opc;
       ex_two_insns <= 1'b1;
+      except_illegalc <= except_illegalc_inter;
       
    end 
    else begin
       alu_opc_out <= `OR1200_ALUOP_NOP;
       rfwb_op2 <= `OR1200_RFWBOP_NOP;
       ex_two_insns <= 1'b0;
+      except_illegalc <= 1'b0;
       
    end
 end
@@ -793,7 +803,7 @@ or1200_ctrl_id_decode or1200_ctrl_id_decode1(
 	.multicycle(multicyclea),
 	.wait_on(wait_ona),
 	.rf_addrw(rf_addrwa),  //synchronous
-	.except_illegal(except_illegala), //synchronous
+	.except_illegal(except_illegala_inter), //synchronous
 	.alu_op(alu_opa), //sync
 	.alu_op2(alu_op2a), //sync
 	.spr_read(spr_reada), //sync
@@ -843,7 +853,7 @@ or1200_ctrl_id_decode or1200_ctrl_id_decode2(
 	.multicycle(multicyclec),
 	.wait_on(wait_onc),
 	.rf_addrw(rf_addrwc),  //synchronous
-	.except_illegal(except_illegalc), //synchronous
+	.except_illegal(except_illegalc_inter), //synchronous
 	.alu_op(alu_opc), //sync
 	.alu_op2(alu_op2c), //sync
 	.spr_read(spr_readc), //sync

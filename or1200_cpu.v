@@ -383,19 +383,15 @@ wire    			dependency_hazard_stall;
    wire [1:0] 			data_dependent;
    reg [1:0] 			data_dependent_next;   
    reg [1:0] 			data_dependent_next_next;		
- 			
+   wire 			same_stage_dslot;
+	
    //Used for or1200-monitor
    wire 	flag1;
    wire 	over1;
    wire 	carry1;
    reg 	flag1_next;
    reg 	over1_next;
-   reg 	carry1_next;
-   
-   //These signals are needed because the ic cache never comes on
-   reg 	ic_en_signal;
-   reg [31:0] counter;
-   
+   reg 	carry1_next;  
    
 //
 // Send exceptions to Debug Unit
@@ -526,7 +522,8 @@ or1200_if or1200_if(
 	.except_itlbmiss(except_itlbmiss),
 	.except_immufault(except_immufault),
 	.except_ibuserr(except_ibuserr),
-	.dependency_hazard_stall(dependency_hazard_stall)
+	.dependency_hazard_stall(dependency_hazard_stall),
+	.same_stage_dslot(same_stage_dslot)
 );
 //
 // Instantiation of instruction decode/control logic
@@ -612,7 +609,8 @@ or1200_ctrl or1200_ctrl(
 	.dc_no_writethrough(dc_no_writethrough),
 	.data_dependent(data_dependent),
         .half_insn_done(half_insn_done),
-	.half_insn_done_next(half_insn_done_next)		
+	.half_insn_done_next(half_insn_done_next),
+	.same_stage_dslot(same_stage_dslot)
 );
 
 //
