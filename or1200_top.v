@@ -312,7 +312,7 @@ wire	[31:0]		icpu_adr_cpu;
 wire			icpu_cycstb_cpu;
 wire	[3:0]		icpu_sel_cpu;
 wire	[3:0]		icpu_tag_cpu;
-wire	[63:0]		icpu_dat_qmem; //all 63s modified for two insns
+wire	[31:0]		icpu_dat_qmem;
 wire			icpu_ack_qmem;
 wire	[31:0]		icpu_adr_immu;
 wire			icpu_err_immu;
@@ -338,7 +338,7 @@ wire			icqmem_err_ic;
 wire	[3:0]		icqmem_tag_ic;
 wire			icqmem_cycstb_qmem;
 wire			icqmem_ci_qmem;
-wire	[63:0]		icqmem_dat_ic;
+wire	[31:0]		icqmem_dat_ic;
 wire			icqmem_ack_ic;
 
 //
@@ -397,8 +397,8 @@ wire			ex_freeze;
 wire			wb_freeze;
 wire			id_void;
 wire			ex_void;
-wire	[63:0]		id_insn;
-wire	[63:0]		ex_insn;
+wire	[31:0]		id_insn;
+wire	[31:0]		ex_insn;
 wire	[31:0]		wb_insn;
 wire	[31:0]		id_pc;
 wire	[31:0]		ex_pc;

@@ -61,7 +61,7 @@ module or1200_if(
 	// Internal i/f
 	if_freeze, if_insn, if_pc, if_flushpipe, saving_if_insn, 
 	if_stall, no_more_dslot, genpc_refetch, rfe,
-	except_itlbmiss, except_immufault, except_ibuserr, dependency_hazard_stall
+	except_itlbmiss, except_immufault, except_ibuserr
 );
 
 //
@@ -77,7 +77,7 @@ input				rst;
 //
 // External i/f to IC
 //
-input	[63:0]			icpu_dat_i; //modified for two insns
+input	[31:0]			icpu_dat_i;
 input				icpu_ack_i;
 input				icpu_err_i;
 input	[31:0]			icpu_adr_i;
@@ -87,7 +87,7 @@ input	[3:0]			icpu_tag_i;
 // Internal i/f
 //
 input				if_freeze;
-output	[63:0]			if_insn; //double width
+output	[31:0]			if_insn;
 output	[31:0]			if_pc;
 input				if_flushpipe;
 output				saving_if_insn;
@@ -98,26 +98,26 @@ input				rfe;
 output				except_itlbmiss;
 output				except_immufault;
 output				except_ibuserr;
-input 	                	dependency_hazard_stall;
- 			
+
 //
 // Internal wires and regs
 //
 wire			save_insn;
 wire			if_bypass;
 reg			if_bypass_reg;
-reg	[63:0]		insn_saved; //modified for two insns
+reg	[31:0]		insn_saved;
 reg	[31:0]		addr_saved;
 reg	[2:0]		err_saved;
 reg			saved;
-	
-assign save_insn = (icpu_ack_i | icpu_err_i) & if_freeze & !saved; 
+
+assign save_insn = (icpu_ack_i | icpu_err_i) & if_freeze & !saved;
 assign saving_if_insn = !if_flushpipe & save_insn;
 
 //
 // IF bypass 
 //
 assign if_bypass = icpu_adr_i[0] ? 1'b0 : if_bypass_reg | if_flushpipe;
+
 always @(posedge clk or `OR1200_RST_EVENT rst)
 	if (rst == `OR1200_RST_VALUE)
 		if_bypass_reg <=  1'b0;
@@ -127,22 +127,14 @@ always @(posedge clk or `OR1200_RST_EVENT rst)
 //
 // IF stage insn
 //
-assign if_insn = no_more_dslot | rfe | if_bypass ? {2{`OR1200_OR32_NOP, 26'h041_0000}} : saved ? insn_saved : icpu_ack_i ? icpu_dat_i : {2{`OR1200_OR32_NOP, 26'h061_0000}}; //161 is used for exceptions 
-//the following is just used for exceptions
-//it has been modified to take into account the possibility of two insns
-assign if_pc = dependency_hazard_stall ? {icpu_adr_i[31:2], 2'h0} : saved ? addr_saved : {icpu_adr_i[31:2], 2'h0};
-//it appears if_stall seems to almost mirror if_freeze
-//primary difference is that if if_freeze is high and an instruction is being saved, than if_stall will be low
-//if_freeze is defined in the freeze.v file
-//however if_freeze is dependent on if_stall and will also be high if if_stall is high and lsu_unstall is low
-//however if_freeze can go high for other reasons including a lsu_stall
-assign if_stall = !icpu_err_i & ((!icpu_ack_i & !saved));
-assign genpc_refetch = saved & icpu_ack_i; 
-//I haven't found a reason to change these for two insns yet (three exception lines below) since the second insn will never straddle a page/bus
+assign if_insn = no_more_dslot | rfe | if_bypass ? {`OR1200_OR32_NOP, 26'h041_0000} : saved ? insn_saved : icpu_ack_i ? icpu_dat_i : {`OR1200_OR32_NOP, 26'h061_0000};
+assign if_pc = saved ? addr_saved : {icpu_adr_i[31:2], 2'h0};
+assign if_stall = !icpu_err_i & !icpu_ack_i & !saved;
+assign genpc_refetch = saved & icpu_ack_i;
 assign except_itlbmiss = no_more_dslot ? 1'b0 : saved ? err_saved[0] : icpu_err_i & (icpu_tag_i == `OR1200_ITAG_TE);
 assign except_immufault = no_more_dslot ? 1'b0 : saved ? err_saved[1] : icpu_err_i & (icpu_tag_i == `OR1200_ITAG_PE);
 assign except_ibuserr = no_more_dslot ? 1'b0 : saved ? err_saved[2] : icpu_err_i & (icpu_tag_i == `OR1200_ITAG_BE);
-   
+
 //
 // Flag for saved insn/address
 //
@@ -157,17 +149,17 @@ always @(posedge clk or `OR1200_RST_EVENT rst)
 		saved <=  1'b0;
 
 //
-// Store fetched instruction - modified to ensure two insns saved and changed the nop type to 141
+// Store fetched instruction
 //
 always @(posedge clk or `OR1200_RST_EVENT rst)
 	if (rst == `OR1200_RST_VALUE)
-		insn_saved <=  {2{`OR1200_OR32_NOP, 26'h141_0000}};
+		insn_saved <=  {`OR1200_OR32_NOP, 26'h041_0000};
 	else if (if_flushpipe)
-		insn_saved <=  {2{`OR1200_OR32_NOP, 26'h141_0000}};
+		insn_saved <=  {`OR1200_OR32_NOP, 26'h041_0000};
 	else if (save_insn)
-		insn_saved <=  icpu_err_i ? {2{`OR1200_OR32_NOP, 26'h141_0000}} : icpu_dat_i; //modified for two insns
+		insn_saved <=  icpu_err_i ? {`OR1200_OR32_NOP, 26'h041_0000} : icpu_dat_i;
 	else if (!if_freeze)
-		insn_saved <=  {2{`OR1200_OR32_NOP, 26'h141_0000}};
+		insn_saved <=  {`OR1200_OR32_NOP, 26'h041_0000};
 
 //
 // Store fetched instruction's address
@@ -178,10 +170,10 @@ always @(posedge clk or `OR1200_RST_EVENT rst)
 	else if (if_flushpipe)
 		addr_saved <=  32'h00000000;
 	else if (save_insn)
-		addr_saved <=  {icpu_adr_i[31:2], 2'b00}; 
+		addr_saved <=  {icpu_adr_i[31:2], 2'b00};
 	else if (!if_freeze)
 		addr_saved <=  {icpu_adr_i[31:2], 2'b00};
-   
+
 //
 // Store fetched instruction's error tags 
 //

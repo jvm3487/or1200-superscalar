@@ -125,8 +125,7 @@ wire				spr_valid;
 wire				rf_ena;
 wire				rf_enb;
 reg				rf_we_allow;
- 				
-   
+
    // Logic to restore output on RFA after debug unit has read out via SPR if.
    // Problem was that the incorrect output would be on RFA after debug unit
    // had read out  - this is bad if that output is relied upon by execute
@@ -140,6 +139,7 @@ reg				rf_we_allow;
    wire 			spr_cs_fe;
    // Track RF A's address each time it's enabled
    reg	[aw-1:0]		addra_last;
+
 
    always @(posedge clk)
      if (rf_ena & !(spr_cs_fe | (du_read & spr_cs)))

@@ -79,7 +79,7 @@ input	[aw-1:0]		addr;
 input				en;
 input	[3:0]			we;
 input	[dw-1:0]		datain;
-output	[(dw*2)-1:0]		dataout; //modified to be twice as wide
+output	[dw-1:0]		dataout;
 
 `ifdef OR1200_BIST
 //
@@ -105,10 +105,10 @@ assign mbist_so_o = mbist_si_i;
 //
 // Instantiation of IC RAM block
 //
-   or1200_spram_modified64 #
+   or1200_spram #
      (
       .aw(`OR1200_ICINDX),
-      .dw(64)
+      .dw(32)
       )
    ic_ram0
      (

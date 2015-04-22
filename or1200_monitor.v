@@ -127,30 +127,6 @@ module or1200_monitor;
       end
    endtask
 
-    //
-   // Get GPR
-   //
-   task get_gpr2;
-      input	[4:0]	gpr_no;
-      output [31:0] 	gpr;
-      integer 		j;
-      begin
-
-`ifdef OR1200_RFRAM_GENERIC
-	 for(j = 0; j < 32; j = j + 1) begin
-	    gpr[j] = `OR1200_TOP.`CPU_cpu.`CPU_rf.rf_a.mem[gpr_no*32+j];
-	 end
-
-`else
-	 //gpr = `OR1200_TOP.`CPU_cpu.`CPU_rf.rf_a.mem[gpr_no];
-	 gpr = `OR1200_TOP.`CPU_cpu.`CPU_rf.rf_e.get_gpr(gpr_no);
-
-`endif
-
-
-      end
-   endtask // for
-   
    //
    // Write state of the OR1200 registers into a file
    //
@@ -187,63 +163,20 @@ module or1200_monitor;
 	 for(i = 0; i < 32; i = i + 1) begin
 	    if (i % 4 == 0)
 	      $fdisplay(fexe);
-	    if ((`OR1200_TOP.`CPU_cpu.`CPU_ctrl.wb_insn_intermediate[31:26] != `OR1200_OR32_NOP) | (`OR1200_TOP.`CPU_cpu.`CPU_ctrl.wb_insn_intermediate[16] == 1'b0))
-	      get_gpr2(i, r);
-	    else
-	      get_gpr(i, r);
+	    get_gpr(i, r);
 	    $fwrite(fexe, "GPR%d: %h  ", i, r);
 	 end
-	 if ((`OR1200_TOP.`CPU_cpu.`CPU_ctrl.wb_insn_intermediate[31:26] != `OR1200_OR32_NOP) | (`OR1200_TOP.`CPU_cpu.`CPU_ctrl.wb_insn_intermediate[16]== 1'b0)) begin
-	    $fdisplay(fexe);
-	    r = {`OR1200_TOP.`CPU_cpu.`CPU_sprs.sr[16:12], `OR1200_TOP.`CPU_cpu.over1_next, `OR1200_TOP.`CPU_cpu.carry1_next, `OR1200_TOP.`CPU_cpu.flag1_next, `OR1200_TOP.`CPU_cpu.`CPU_sprs.sr[8:0]};
-	    $fwrite(fexe, "SR   : %h  ", r);
-	    r = `OR1200_TOP.`CPU_cpu.`CPU_sprs.epcr;
-	    $fwrite(fexe, "EPCR0: %h  ", r);
-	    r = `OR1200_TOP.`CPU_cpu.`CPU_sprs.eear;
-	    $fwrite(fexe, "EEAR0: %h  ", r);
-	    r = `OR1200_TOP.`CPU_cpu.`CPU_sprs.esr;
-	    $fdisplay(fexe, "ESR0 : %h", r);
-	 end // if (`OR1200_TOP.`CPU_cpu.`CPU_ctrl.wb_insn_intermediate[31:26] != `OR1200_OR32_NOP)
-	 else begin
-	    $fdisplay(fexe);
-	    r = `OR1200_TOP.`CPU_cpu.`CPU_sprs.sr;
-	    $fwrite(fexe, "SR   : %h  ", r);
-	    r = `OR1200_TOP.`CPU_cpu.`CPU_sprs.epcr;
-	    $fwrite(fexe, "EPCR0: %h  ", r);
-	    r = `OR1200_TOP.`CPU_cpu.`CPU_sprs.eear;
-	    $fwrite(fexe, "EEAR0: %h  ", r);
-	    r = `OR1200_TOP.`CPU_cpu.`CPU_sprs.esr;
-	    $fdisplay(fexe, "ESR0 : %h", r);
-	 end
+	 $fdisplay(fexe);
+	 r = `OR1200_TOP.`CPU_cpu.`CPU_sprs.sr;
+	 $fwrite(fexe, "SR   : %h  ", r);
+	 r = `OR1200_TOP.`CPU_cpu.`CPU_sprs.epcr;
+	 $fwrite(fexe, "EPCR0: %h  ", r);
+	 r = `OR1200_TOP.`CPU_cpu.`CPU_sprs.eear;
+	 $fwrite(fexe, "EEAR0: %h  ", r);
+	 r = `OR1200_TOP.`CPU_cpu.`CPU_sprs.esr;
+	 $fdisplay(fexe, "ESR0 : %h", r);
 `endif //  `ifdef OR1200_MONITOR_EXEC_STATE
 	 insns = insns + 1;
-	 if ((`OR1200_TOP.`CPU_cpu.`CPU_ctrl.wb_insn_intermediate[31:26] != `OR1200_OR32_NOP) | (`OR1200_TOP.`CPU_cpu.`CPU_ctrl.wb_insn_intermediate[16]== 1'b0)) begin  
-	 /*if(exception)
-	   $fwrite(fexe, "\nEXECUTED(%d): %h:  %h  (exception)", insns,
-		   `OR1200_TOP.`CPU_cpu.`CPU_except.ex_pc,
-		   `OR1200_TOP.`CPU_cpu.`CPU_ctrl.ex_insn);
-	 else*/
-	    $fwrite(fexe, "\nEXECUTED(%d): %h:  %h", insns,
-		    `OR1200_TOP.`CPU_cpu.`CPU_except.wb_pc2,
-		    `OR1200_TOP.`CPU_cpu.`CPU_ctrl.wb_insn_intermediate);
-	    for(i = 0; i < 32; i = i + 1) begin
-	       if (i % 4 == 0)
-	      $fdisplay(fexe);
-	       get_gpr(i, r);
-	       $fwrite(fexe, "GPR%d: %h  ", i, r);
-	    end
-	    $fdisplay(fexe);
-	    r = `OR1200_TOP.`CPU_cpu.`CPU_sprs.sr;
-	    $fwrite(fexe, "SR   : %h  ", r);
-	    r = `OR1200_TOP.`CPU_cpu.`CPU_sprs.epcr;
-	    $fwrite(fexe, "EPCR0: %h  ", r);
-	    r = `OR1200_TOP.`CPU_cpu.`CPU_sprs.eear;
-	    $fwrite(fexe, "EEAR0: %h  ", r);
-	    r = `OR1200_TOP.`CPU_cpu.`CPU_sprs.esr;
-	    $fdisplay(fexe, "ESR0 : %h", r);
-	    insns = insns + 1;
-	    
-	 end // if (`OR1200_TOP.`CPU_cpu.`CPU_ctrl.wb_insn_intermediate[31:26] != `OR1200_OR32_NOP)
       end
    endtask // display_arch_state
 
