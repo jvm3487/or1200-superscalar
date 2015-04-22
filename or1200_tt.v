@@ -131,7 +131,7 @@ always @(posedge clk or `OR1200_RST_EVENT rst)
 	else if (ttcr_sel && spr_write)
 		ttcr <=  spr_dat_i;
 	else if (!stop)
-		ttcr <=  ttcr + 32'd1;
+		ttcr <=  ttcr + 32'd1; 
 `else
 assign ttcr = 32'b0;
 `endif

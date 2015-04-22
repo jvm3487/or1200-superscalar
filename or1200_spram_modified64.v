@@ -71,7 +71,7 @@ module or1200_spram_modified64
    // Default address and data buses width
    //
    parameter aw = 10;
-   parameter dw = 64;
+   parameter dw = 128;
    
 `ifdef OR1200_BIST
    //
@@ -90,8 +90,8 @@ module or1200_spram_modified64
    input 				  we;	// Write enable input
    //input 				  oe;	// Output enable input
    input [aw-1:0] 			  addr;	// address bus inputs
-   input [(dw/2)-1:0] 			  di;	// input data bus - modified to 31 because size in size is now different than data size
-   output [dw-1:0] 			  doq;	// output data bus - changed to dw from dw/2 after test
+   input [(dw/4)-1:0] 			  di;	// input data bus - modified to 31 because size in size is now different than data size
+   output [(dw/2)-1:0] 			  doq;	// output data bus - changed to dw from dw/2 after test
    
    //
    // Internal wires and registers
@@ -105,12 +105,12 @@ module or1200_spram_modified64
    // Generic RAM's registers and wires
    //
 `ifdef OR1200_GENERIC   
-   reg [dw-1:0] 			  mem [(1<<(aw-1))-1:0] /*synthesis syn_ramstyle = "no_rw_check"*/; // modified because cache is twice as wide so one less bit to index
+   reg [dw-1:0] 			  mem [(1<<(aw-2))-1:0] /*synthesis syn_ramstyle = "no_rw_check"*/; // modified because cache is twice as wide so one less bit to index
 `else
-   reg [dw-1:0] 			  mem [(1<<(aw-1))-1:0];
+   reg [dw-1:0] 			  mem [(1<<(aw-2))-1:0];
 `endif
    reg [aw-1:0] 			  addr_reg;		// RAM address register
-   reg [dw-1:0] 			  doq_intermediate; //changed to dw from dw/2 after test
+   reg [(dw/2)-1:0] 			  doq_intermediate; //changed to dw from dw/2 after test
    
    
    //
@@ -119,17 +119,30 @@ module or1200_spram_modified64
    //assign doq = (oe) ? mem[addr_reg] : {dw{1'b0}};
    
    // The following logic has been modified to make insn cache 64 bits wide
+   // It was then modified to make it 128 bits wide
    assign doq = doq_intermediate; 
    
    
-   always @(mem[addr_reg[aw-1:1]],addr_reg) begin
-      if (addr_reg[0] == 1'b1) begin //fetched in the middle of cache block
+   always @(*) begin
+      case ({addr_reg[1], addr_reg[0]})
+	{2'b00}:
+	  doq_intermediate <= mem[addr_reg[aw-1:2]][(dw/2)-1:0];
+	{2'b01}:
+	  doq_intermediate <= mem[addr_reg[aw-1:2]][((3*dw)/4)-1:dw/4];
+	{2'b10}:
+	  doq_intermediate <= mem[addr_reg[aw-1:2]][dw-1:(dw/2)];
+	{2'b11}: begin
+	   doq_intermediate[(dw/2)-1:dw/4] <= {(dw/4){1'b0}};
+	   doq_intermediate[(dw/4)-1:0] <= mem[addr_reg[aw-1:2]][dw-1:(3*dw)/4];
+	end
+/*if (addr_reg[0] == 1'b1) begin //fetched in the middle of cache block
 	 doq_intermediate[(dw/2)-1:0] = mem[addr_reg[aw-1:1]][(dw-1):(dw/2)];
 	 doq_intermediate[dw-1:dw/2] = {(dw/2){1'b0}}; //upper half is all zeros
       end
       else begin
 	 doq_intermediate = mem[addr_reg[aw-1:1]];
-      end
+      end*/
+      endcase // case ({addr_reg[1], addr_reg[0]})
    end
    //
    // RAM read address register
@@ -143,14 +156,34 @@ module or1200_spram_modified64
    //
    always @(posedge clk)
      if (we && ce) begin
-	if (addr[0] == 1'b1) begin //store in most signficant part
+	case({addr[1], addr[0]})
+	  {2'b00}: begin
+	     mem[addr[aw-1:2]][(dw/4)-1:0] <= di;
+	     //mem[addr[aw-1:2]][dw-1:dw/4] <= mem[addr[aw-1:2]][dw-1:dw/4];
+	  end
+	  {2'b01}: begin
+	     //mem[addr[aw-1:2]][(dw/4)-1:0] <= mem[addr[aw-1:2]][(dw/4)-1:0];
+	     mem[addr[aw-1:2]][(dw/2)-1:(dw/4)] <= di;
+	     //mem[addr[aw-1:2]][dw-1:(dw/2)] <= mem[addr[aw-1:2]][dw-1:dw/2];
+	  end
+	  {2'b10}: begin
+	     //mem[addr[aw-1:2]][(dw/2)-1:0] <= mem[addr[aw-1:2]][(dw/2)-1:0];
+	     mem[addr[aw-1:2]][((3*dw)/4)-1:dw/2] <= di;
+	     //mem[addr[aw-1:2]][dw-1:(3*dw)/4] <= mem[addr[aw-1:2]][dw-1:(3*dw)/4];
+	  end
+	  {2'b11}: begin
+	     //mem[addr[aw-1:2]][((3*dw)/4)-1:0] <= mem[addr[aw-1:2]][((3*dw)/4)-1:0];
+	     mem[addr[aw-1:2]][dw-1:(3*dw)/4] <= di;
+	  end
+	/*if (addr[0] == 1'b1) begin //store in most signficant part
 	   mem[addr[aw-1:1]][dw-1:dw/2] <=  di;
 	   mem[addr[aw-1:1]][(dw/2)-1:0] <= mem[addr[aw-1:1]][(dw/2)-1:0];
 	end
 	else begin
 	   mem[addr[aw-1:1]][dw-1:dw/2] <= mem[addr[aw-1:1]][dw-1:dw/2];
 	   mem[addr[aw-1:1]][(dw/2)-1:0] <= di;
-	end
+	end*/
+	endcase
      end
 	
 endmodule // or1200_spram

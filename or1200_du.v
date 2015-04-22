@@ -92,7 +92,7 @@ input	[31:0]			dcpu_dat_dc;	// LSU load data
 input	[`OR1200_FETCHOP_WIDTH-1:0]	icpu_cycstb_i;	// IFETCH unit status
 input				ex_freeze;	// EX stage freeze
 input	[`OR1200_BRANCHOP_WIDTH-1:0]	branch_op;	// Branch op
-input	[dw-1:0]		ex_insn;	// EX insn
+input   [63:0] 			ex_insn;	// EX insn - changed for two insns
 input	[31:0]			id_pc;		// insn fetch EA
 input	[31:0]			spr_dat_npc;	// Next PC (for trace)
 input	[31:0]			rf_dataw;	// ALU result (for trace)

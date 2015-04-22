@@ -61,10 +61,10 @@ module or1200_genpc(
 
 	// Internal i/f
 	pre_branch_op, branch_op, except_type, except_prefix,
-	id_branch_addrtarget, ex_branch_addrtarget, muxed_b, operand_b, 
+	ex_branch_addrtarget, muxed_b, operand_b, 
 	flag, flagforw, ex_branch_taken, except_start,
 	epcr, spr_dat_i, spr_pc_we, genpc_refetch,
-	genpc_freeze, no_more_dslot, lsu_stall
+	genpc_freeze, no_more_dslot, lsu_stall, ex_two_insns, if_two_insns, dependency_hazard_stall
 );
 
 //
@@ -94,7 +94,6 @@ input   [`OR1200_BRANCHOP_WIDTH-1:0]    pre_branch_op;
 input	[`OR1200_BRANCHOP_WIDTH-1:0]	branch_op;
 input	[`OR1200_EXCEPT_WIDTH-1:0]	except_type;
 input					except_prefix;
-input	[31:2]			id_branch_addrtarget;
 input	[31:2]			ex_branch_addrtarget;
 input	[31:0]			muxed_b;
 input	[31:0]			operand_b;
@@ -109,7 +108,10 @@ input				genpc_refetch;
 input				genpc_freeze;
 input				no_more_dslot;
 input				lsu_stall;
-
+input   			ex_two_insns;
+input   			if_two_insns;  
+input   			dependency_hazard_stall;			   
+   
 parameter boot_adr = `OR1200_BOOT_ADR;
 //
 // Internal wires and regs
@@ -133,7 +135,7 @@ reg				wait_lsu;
    //
    // Control access to IC subsystem
    //
-   assign icpu_cycstb_o = ~(genpc_freeze | (|pre_branch_op && !icpu_rty_i) | wait_lsu);
+   assign icpu_cycstb_o = ~(genpc_freeze | ((|pre_branch_op & !no_more_dslot) & !icpu_rty_i) | wait_lsu);
    assign icpu_sel_o = 4'b1111;
    assign icpu_tag_o = `OR1200_ITAG_NI;
 
@@ -143,9 +145,9 @@ reg				wait_lsu;
    always @(posedge clk or `OR1200_RST_EVENT rst)
      if (rst == `OR1200_RST_VALUE)
        wait_lsu <=  1'b0;
-     else if (!wait_lsu & |pre_branch_op & lsu_stall)
+     else if (!wait_lsu & (|pre_branch_op & !no_more_dslot) & lsu_stall)
        wait_lsu <=  1'b1;
-     else if (wait_lsu & ~|pre_branch_op)
+     else if (wait_lsu & (~|pre_branch_op | no_more_dslot))
        wait_lsu <=  1'b0;
 
    //
@@ -165,11 +167,21 @@ reg				wait_lsu;
    //
    always @(pcreg or ex_branch_addrtarget or flag or branch_op or except_type
 	    or except_start or operand_b or epcr or spr_pc_we or spr_dat_i or 
-	    except_prefix) 
+	    except_prefix or if_two_insns or dependency_hazard_stall) 
      begin
 	casez ({spr_pc_we, except_start, branch_op}) // synopsys parallel_case
 	  {2'b00, `OR1200_BRANCHOP_NOP}: begin
-	     pc = {pcreg + 30'd1, 2'b0};
+	     if (!dependency_hazard_stall) begin
+		if (!if_two_insns) begin
+		   pc = {pcreg + 30'd1, 2'b0};
+		end
+		else begin
+		   pc = {pcreg + 30'd2, 2'b0};
+		end
+	     end
+	     else begin
+		pc = {pcreg, 2'b0};
+	     end
 	     ex_branch_taken = 1'b0;
 	  end
 	  {2'b00, `OR1200_BRANCHOP_J}: begin
@@ -209,7 +221,18 @@ reg				wait_lsu;
 	       $display("%t: BRANCHOP_BF: not taken", $time);
 	       // synopsys translate_on
 `endif
-	       pc = {pcreg + 30'd1, 2'b0};
+	       //pc = {pcreg + 30'd1, 2'b0};
+	       if (!dependency_hazard_stall) begin
+		  if (!if_two_insns) begin
+		     pc = {pcreg + 30'd1, 2'b0};
+		  end
+		  else begin
+		     pc = {pcreg + 30'd2, 2'b0};
+		  end
+	       end
+	       else begin
+		  pc = {pcreg, 2'b0};
+	       end
 	       ex_branch_taken = 1'b0;
 	    end
 	  {2'b00, `OR1200_BRANCHOP_BNF}:
@@ -219,7 +242,18 @@ reg				wait_lsu;
 	       $display("%t: BRANCHOP_BNF: not taken", $time);
 	       // synopsys translate_on
 `endif
-	       pc = {pcreg + 30'd1, 2'b0};
+	       //pc = {pcreg + 30'd1, 2'b0};
+	       if (!dependency_hazard_stall) begin
+		  if (!if_two_insns) begin
+		     pc = {pcreg + 30'd1, 2'b0};
+		  end
+		  else begin
+		     pc = {pcreg + 30'd2, 2'b0};
+		  end
+	       end
+	       else begin
+		  pc = {pcreg, 2'b0};
+	       end
 	       ex_branch_taken = 1'b0;
 	    end
 	    else begin
@@ -288,8 +322,14 @@ reg				wait_lsu;
      else if (spr_pc_we) begin
 	pcreg_default <=  spr_dat_i[31:2];
      end
-     else if (no_more_dslot | except_start | !genpc_freeze & !icpu_rty_i 
-	      & !genpc_refetch) begin
+   //it appears that icpu_rty_i going low is the main reason the pc increments since the other four signals are generally low
+   //tracing the signal back through a bunch of modules suggests during normal operations that icqmem_rty_o in the ic_top.v is the same signal (while under normal/not error conditions is the opposite of icqmem_ack_o in that same file
+   //although genpc_refetch seems to go high two cycles before branch operations - it looks to keep the program counter from incrememnting while if_freeze is asserted
+   //genpc_freeze does not seem to be utlized very often/if at all - mostly low
+   //not sure if no_more_dslot is necessary in the below logic
+   //in the above icpu_adr_o address calculation (no_more_dslot seems to be high for all branch operations) - this causes if_bypass to go high in the if.v file iff if_bypass_reg or if_flushpipe is also high
+   //commenting the signal out still causes the processor to pass all tests in simulation so more than likely this is unnecessary
+     else if (no_more_dslot | except_start | !genpc_freeze & !icpu_rty_i & !genpc_refetch) begin
 	pcreg_default <=  pc[31:2];
      end
 

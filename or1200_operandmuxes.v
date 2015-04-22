@@ -56,8 +56,7 @@ module or1200_operandmuxes(
 	clk, rst,
 
 	// Internal i/f
-	id_freeze, ex_freeze, rf_dataa, rf_datab, ex_forw, wb_forw,
-	simm, sel_a, sel_b, operand_a, operand_b, muxed_a, muxed_b
+	id_freeze, ex_freeze, rf_dataa, rf_datab, ex_forw, ex_forw2, wb_forw, wb_forw2,	simm, sel_a, sel_b, operand_a, operand_b, muxed_a, muxed_b
 );
 
 parameter width = `OR1200_OPERAND_WIDTH;
@@ -72,15 +71,17 @@ input				ex_freeze;
 input	[width-1:0]		rf_dataa;
 input	[width-1:0]		rf_datab;
 input	[width-1:0]		ex_forw;
+input	[width-1:0]		ex_forw2;   
 input	[width-1:0]		wb_forw;
+input	[width-1:0]		wb_forw2;   
 input	[width-1:0]		simm;
-input	[`OR1200_SEL_WIDTH-1:0]	sel_a;
-input	[`OR1200_SEL_WIDTH-1:0]	sel_b;
+input	[`OR1200_SEL_WIDTH:0]	sel_a;
+input	[`OR1200_SEL_WIDTH:0]	sel_b;
 output	[width-1:0]		operand_a;
 output	[width-1:0]		operand_b;
 output	[width-1:0]		muxed_a;
 output	[width-1:0]		muxed_b;
-
+   
 //
 // Internal wires and regs
 //
@@ -126,38 +127,46 @@ end
 //
 // Forwarding logic for operand A register
 //
-always @(ex_forw or wb_forw or rf_dataa or sel_a) begin
+always @(ex_forw or ex_forw2 or wb_forw or wb_forw2 or rf_dataa or sel_a) begin
 `ifdef OR1200_ADDITIONAL_SYNOPSYS_DIRECTIVES
 	casez (sel_a)	// synopsys parallel_case infer_mux
 `else
 	casez (sel_a)	// synopsys parallel_case
 `endif
-		`OR1200_SEL_EX_FORW:
-			muxed_a = ex_forw;
-		`OR1200_SEL_WB_FORW:
-			muxed_a = wb_forw;
-		default:
-			muxed_a = rf_dataa;
+	  {1'b1, `OR1200_SEL_EX_FORW}:
+	    muxed_a = ex_forw2;
+	  {1'b0, `OR1200_SEL_EX_FORW}:
+	    muxed_a = ex_forw;
+	  {1'b1, `OR1200_SEL_WB_FORW}:
+	    muxed_a = wb_forw2;
+	  {1'b0, `OR1200_SEL_WB_FORW}:
+	    muxed_a = wb_forw;
+	  default:
+	    muxed_a = rf_dataa;
 	endcase
 end
 
 //
 // Forwarding logic for operand B register
 //
-always @(simm or ex_forw or wb_forw or rf_datab or sel_b) begin
+always @(simm or ex_forw or ex_forw2 or wb_forw or wb_forw2 or rf_datab or sel_b) begin
 `ifdef OR1200_ADDITIONAL_SYNOPSYS_DIRECTIVES
 	casez (sel_b)	// synopsys parallel_case infer_mux
 `else
 	casez (sel_b)	// synopsys parallel_case
 `endif
-		`OR1200_SEL_IMM:
-			muxed_b = simm;
-		`OR1200_SEL_EX_FORW:
-			muxed_b = ex_forw;
-		`OR1200_SEL_WB_FORW:
-			muxed_b = wb_forw;
-		default:
-			muxed_b = rf_datab;
+	  {1'b0, `OR1200_SEL_IMM}:
+	    muxed_b = simm;
+	  {1'b1, `OR1200_SEL_EX_FORW}:
+	    muxed_b = ex_forw2;
+	  {1'b0, `OR1200_SEL_EX_FORW}:
+	    muxed_b = ex_forw;
+	  {1'b1, `OR1200_SEL_WB_FORW}:
+	    muxed_b = wb_forw2;
+	  {1'b0, `OR1200_SEL_WB_FORW}:
+	    muxed_b = wb_forw;
+	  default:
+	    muxed_b = rf_datab;
 	endcase
 end
 
