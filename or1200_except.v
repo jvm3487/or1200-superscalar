@@ -505,11 +505,11 @@ assign except_flushpipe = |except_trig & ~|state;
 `ifdef OR1200_EXCEPT_IPF
 		    14'b01_????_????_????: begin
 		       except_type <=  `OR1200_EXCEPT_IPF;
-		       eear <=  ex_dslot ? 
+		       eear <= half_insn_done ? (ex_pc + 32'h4) : ex_dslot ? 
 			       ex_pc : delayed1_ex_dslot ? 
 			       id_pc : delayed2_ex_dslot ? 
 			       id_pc : id_pc;
-		       epcr <=  ex_dslot ? 
+		       epcr <= half_insn_done ? (ex_pc + 32'h4) : ex_dslot ? 
 			       wb_pc : delayed1_ex_dslot ? 
 			       id_pc : delayed2_ex_dslot ? 
 			       id_pc : id_pc;
@@ -566,7 +566,7 @@ assign except_flushpipe = |except_trig & ~|state;
 `ifdef OR1200_EXCEPT_SYSCALL
 		    14'b00_0000_01??_????: begin
 		       except_type <=  `OR1200_EXCEPT_SYSCALL;
-		       epcr <=  ex_dslot ? 
+		       epcr <=  half_insn_done ? (ex_pc + 32'h4) : ex_dslot ? 
 			       wb_pc : delayed1_ex_dslot ? 
 			       id_pc : delayed2_ex_dslot ? 
 			       id_pc : id_pc;
@@ -577,7 +577,7 @@ assign except_flushpipe = |except_trig & ~|state;
 		    14'b00_0000_001?_????: begin
 		       except_type <=  `OR1200_EXCEPT_DPF;
 		       eear <=  lsu_addr;
-		       epcr <=  ex_dslot ? 
+		       epcr <=  ex_dslot ? //will always occur with first instruction due to current implementation
 			       wb_pc : delayed1_ex_dslot ? 
 			       dl_pc : ex_pc;
 		       dsx <= ex_dslot;
@@ -587,7 +587,7 @@ assign except_flushpipe = |except_trig & ~|state;
 		    14'b00_0000_0001_????: begin	// Data Bus Error
 		       except_type <=  `OR1200_EXCEPT_BUSERR;
 		       eear <=  lsu_addr;
-		       epcr <=  ex_dslot ? 
+		       epcr <= ex_dslot ? //first instruction 
 			       wb_pc : delayed1_ex_dslot ? 
 			       dl_pc : ex_pc;
 		       dsx <= ex_dslot;
@@ -596,7 +596,7 @@ assign except_flushpipe = |except_trig & ~|state;
 `ifdef OR1200_EXCEPT_RANGE
 		    14'b00_0000_0000_1???: begin
 		       except_type <=  `OR1200_EXCEPT_RANGE;
-		       epcr <=  ex_dslot ? 
+		       epcr <= ex_dslot ? 
 			       wb_pc : delayed1_ex_dslot ? 
 			       dl_pc : delayed2_ex_dslot ? 
 			       id_pc : ex_pc;

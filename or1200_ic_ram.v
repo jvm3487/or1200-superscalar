@@ -108,7 +108,7 @@ assign mbist_so_o = mbist_si_i;
    or1200_spram_modified64 #
      (
       .aw(`OR1200_ICINDX),
-      .dw(128)
+      .dw(512)
       )
    ic_ram0
      (

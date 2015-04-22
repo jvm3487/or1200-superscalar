@@ -159,20 +159,20 @@ module or1200_spram_modified64
 	case({addr[1], addr[0]})
 	  {2'b00}: begin
 	     mem[addr[aw-1:2]][(dw/4)-1:0] <= di;
-	     mem[addr[aw-1:2]][dw-1:dw/4] <= mem[addr[aw-1:2]][dw-1:dw/4];
+	     //mem[addr[aw-1:2]][dw-1:dw/4] <= mem[addr[aw-1:2]][dw-1:dw/4];
 	  end
 	  {2'b01}: begin
-	     mem[addr[aw-1:2]][(dw/4)-1:0] <= mem[addr[aw-1:2]][(dw/4)-1:0];
+	     //mem[addr[aw-1:2]][(dw/4)-1:0] <= mem[addr[aw-1:2]][(dw/4)-1:0];
 	     mem[addr[aw-1:2]][(dw/2)-1:(dw/4)] <= di;
-	     mem[addr[aw-1:2]][dw-1:(dw/2)] <= mem[addr[aw-1:2]][dw-1:dw/2];
+	     //mem[addr[aw-1:2]][dw-1:(dw/2)] <= mem[addr[aw-1:2]][dw-1:dw/2];
 	  end
 	  {2'b10}: begin
-	     mem[addr[aw-1:2]][(dw/2)-1:0] <= mem[addr[aw-1:2]][(dw/2)-1:0];
+	     //mem[addr[aw-1:2]][(dw/2)-1:0] <= mem[addr[aw-1:2]][(dw/2)-1:0];
 	     mem[addr[aw-1:2]][((3*dw)/4)-1:dw/2] <= di;
-	     mem[addr[aw-1:2]][dw-1:(3*dw)/4] <= mem[addr[aw-1:2]][dw-1:(3*dw)/4];
+	     //mem[addr[aw-1:2]][dw-1:(3*dw)/4] <= mem[addr[aw-1:2]][dw-1:(3*dw)/4];
 	  end
 	  {2'b11}: begin
-	     mem[addr[aw-1:2]][((3*dw)/4)-1:0] <= mem[addr[aw-1:2]][((3*dw)/4)-1:0];
+	     //mem[addr[aw-1:2]][((3*dw)/4)-1:0] <= mem[addr[aw-1:2]][((3*dw)/4)-1:0];
 	     mem[addr[aw-1:2]][dw-1:(3*dw)/4] <= di;
 	  end
 	/*if (addr[0] == 1'b1) begin //store in most signficant part

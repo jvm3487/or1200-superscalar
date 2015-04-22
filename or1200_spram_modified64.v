@@ -71,7 +71,7 @@ module or1200_spram_modified64
    // Default address and data buses width
    //
    parameter aw = 10;
-   parameter dw = 128;
+   parameter dw = 512;
    
 `ifdef OR1200_BIST
    //
@@ -90,8 +90,8 @@ module or1200_spram_modified64
    input 				  we;	// Write enable input
    //input 				  oe;	// Output enable input
    input [aw-1:0] 			  addr;	// address bus inputs
-   input [(dw/4)-1:0] 			  di;	// input data bus - modified to 31 because size in size is now different than data size
-   output [(dw/2)-1:0] 			  doq;	// output data bus - changed to dw from dw/2 after test
+   input [(dw/16)-1:0] 			  di;	// input data bus - modified to 31 because size in size is now different than data size
+   output [(dw/8)-1:0] 			  doq;	// output data bus - changed to dw from dw/2 after test
    
    //
    // Internal wires and registers
@@ -105,12 +105,12 @@ module or1200_spram_modified64
    // Generic RAM's registers and wires
    //
 `ifdef OR1200_GENERIC   
-   reg [dw-1:0] 			  mem [(1<<(aw-2))-1:0] /*synthesis syn_ramstyle = "no_rw_check"*/; // modified because cache is twice as wide so one less bit to index
+   reg [dw-1:0] 			  mem [(1<<(aw-4))-1:0] /*synthesis syn_ramstyle = "no_rw_check"*/; // modified because cache is twice as wide so one less bit to index
 `else
-   reg [dw-1:0] 			  mem [(1<<(aw-2))-1:0];
+   reg [dw-1:0] 			  mem [(1<<(aw-4))-1:0];
 `endif
    reg [aw-1:0] 			  addr_reg;		// RAM address register
-   reg [(dw/2)-1:0] 			  doq_intermediate; //changed to dw from dw/2 after test
+   reg [(dw/8)-1:0] 			  doq_intermediate; //changed to dw from dw/2 after test
    
    
    //
@@ -124,16 +124,40 @@ module or1200_spram_modified64
    
    
    always @(*) begin
-      case ({addr_reg[1], addr_reg[0]})
-	{2'b00}:
-	  doq_intermediate <= mem[addr_reg[aw-1:2]][(dw/2)-1:0];
-	{2'b01}:
-	  doq_intermediate <= mem[addr_reg[aw-1:2]][((3*dw)/4)-1:dw/4];
-	{2'b10}:
-	  doq_intermediate <= mem[addr_reg[aw-1:2]][dw-1:(dw/2)];
-	{2'b11}: begin
-	   doq_intermediate[(dw/2)-1:dw/4] <= {(dw/4){1'b0}};
-	   doq_intermediate[(dw/4)-1:0] <= mem[addr_reg[aw-1:2]][dw-1:(3*dw)/4];
+      case ({addr_reg[3], addr_reg[2], addr_reg[1], addr_reg[0]})
+	{4'b0000}:
+	  doq_intermediate <= mem[addr_reg[aw-1:4]][(dw/8)-1:0];
+	{4'b0001}:
+	  doq_intermediate <= mem[addr_reg[aw-1:4]][((3*dw)/16)-1:dw/16];
+	{4'b0010}:
+	  doq_intermediate <= mem[addr_reg[aw-1:4]][((4*dw)/16)-1:(2*dw)/16];
+	{4'b0011}:
+	  doq_intermediate <= mem[addr_reg[aw-1:4]][((5*dw)/16)-1:(3*dw)/16];
+	{4'b0100}:
+	  doq_intermediate <= mem[addr_reg[aw-1:4]][((6*dw)/16)-1:(4*dw)/16];
+	{4'b0101}:
+	  doq_intermediate <= mem[addr_reg[aw-1:4]][((7*dw)/16)-1:(5*dw)/16];
+	{4'b0110}:
+	  doq_intermediate <= mem[addr_reg[aw-1:4]][((8*dw)/16)-1:(6*dw)/16];
+	{4'b0111}:
+	  doq_intermediate <= mem[addr_reg[aw-1:4]][((9*dw)/16)-1:(7*dw)/16];
+	{4'b1000}:
+	  doq_intermediate <= mem[addr_reg[aw-1:4]][((10*dw)/16)-1:(8*dw)/16];
+	{4'b1001}:
+	  doq_intermediate <= mem[addr_reg[aw-1:4]][((11*dw)/16)-1:(9*dw)/16];
+	{4'b1010}:
+	  doq_intermediate <= mem[addr_reg[aw-1:4]][((12*dw)/16)-1:(10*dw)/16];
+	{4'b1011}:
+	  doq_intermediate <= mem[addr_reg[aw-1:4]][((13*dw)/16)-1:(11*dw)/16];
+	{4'b1100}:
+	  doq_intermediate <= mem[addr_reg[aw-1:4]][((14*dw)/16)-1:(12*dw)/16];
+	{4'b1101}:
+	  doq_intermediate <= mem[addr_reg[aw-1:4]][((15*dw)/16)-1:(13*dw)/16];
+	{4'b1110}:
+	  doq_intermediate <= mem[addr_reg[aw-1:4]][((16*dw)/16)-1:(14*dw)/16];
+	{4'b1111}: begin
+	   doq_intermediate[(dw/8)-1:dw/16] <= {(dw/16){1'b0}};
+	   doq_intermediate[(dw/16)-1:0] <= mem[addr_reg[aw-1:4]][dw-1:(15*dw)/16];
 	end
 /*if (addr_reg[0] == 1'b1) begin //fetched in the middle of cache block
 	 doq_intermediate[(dw/2)-1:0] = mem[addr_reg[aw-1:1]][(dw-1):(dw/2)];
@@ -156,33 +180,56 @@ module or1200_spram_modified64
    //
    always @(posedge clk)
      if (we && ce) begin
-	case({addr[1], addr[0]})
-	  {2'b00}: begin
-	     mem[addr[aw-1:2]][(dw/4)-1:0] <= di;
-	     //mem[addr[aw-1:2]][dw-1:dw/4] <= mem[addr[aw-1:2]][dw-1:dw/4];
+	case({addr[3], addr[2], addr[1], addr[0]})
+	  {4'b0000}: begin
+	     mem[addr[aw-1:4]][(dw/16)-1:0] <= di;
 	  end
-	  {2'b01}: begin
-	     //mem[addr[aw-1:2]][(dw/4)-1:0] <= mem[addr[aw-1:2]][(dw/4)-1:0];
-	     mem[addr[aw-1:2]][(dw/2)-1:(dw/4)] <= di;
-	     //mem[addr[aw-1:2]][dw-1:(dw/2)] <= mem[addr[aw-1:2]][dw-1:dw/2];
+	  {4'b0001}: begin
+	     mem[addr[aw-1:4]][((2*dw)/16)-1:(dw/16)] <= di;
 	  end
-	  {2'b10}: begin
-	     //mem[addr[aw-1:2]][(dw/2)-1:0] <= mem[addr[aw-1:2]][(dw/2)-1:0];
-	     mem[addr[aw-1:2]][((3*dw)/4)-1:dw/2] <= di;
-	     //mem[addr[aw-1:2]][dw-1:(3*dw)/4] <= mem[addr[aw-1:2]][dw-1:(3*dw)/4];
+	  {4'b0010}: begin
+	     mem[addr[aw-1:4]][((3*dw)/16)-1:((2*dw)/16)] <= di;
 	  end
-	  {2'b11}: begin
-	     //mem[addr[aw-1:2]][((3*dw)/4)-1:0] <= mem[addr[aw-1:2]][((3*dw)/4)-1:0];
-	     mem[addr[aw-1:2]][dw-1:(3*dw)/4] <= di;
+	  {4'b0011}: begin
+	     mem[addr[aw-1:4]][((4*dw)/16)-1:((3*dw)/16)] <= di;
 	  end
-	/*if (addr[0] == 1'b1) begin //store in most signficant part
-	   mem[addr[aw-1:1]][dw-1:dw/2] <=  di;
-	   mem[addr[aw-1:1]][(dw/2)-1:0] <= mem[addr[aw-1:1]][(dw/2)-1:0];
-	end
-	else begin
-	   mem[addr[aw-1:1]][dw-1:dw/2] <= mem[addr[aw-1:1]][dw-1:dw/2];
-	   mem[addr[aw-1:1]][(dw/2)-1:0] <= di;
-	end*/
+	  {4'b0100}: begin
+	     mem[addr[aw-1:4]][((5*dw)/16)-1:((4*dw)/16)] <= di;
+	  end
+	  {4'b0101}: begin
+	     mem[addr[aw-1:4]][((6*dw)/16)-1:((5*dw)/16)] <= di;
+	  end
+	  {4'b0110}: begin
+	     mem[addr[aw-1:4]][((7*dw)/16)-1:((6*dw)/16)] <= di;
+	  end
+	  {4'b0111}: begin
+	     mem[addr[aw-1:4]][((8*dw)/16)-1:((7*dw)/16)] <= di;
+	  end
+	  {4'b1000}: begin
+	     mem[addr[aw-1:4]][((9*dw)/16)-1:((8*dw)/16)] <= di;
+	  end
+	  {4'b1001}: begin
+	     mem[addr[aw-1:4]][((10*dw)/16)-1:((9*dw)/16)] <= di;
+	  end
+	  {4'b1010}: begin
+	     mem[addr[aw-1:4]][((11*dw)/16)-1:((10*dw)/16)] <= di;
+	  end
+	  {4'b1011}: begin
+	     mem[addr[aw-1:4]][((12*dw)/16)-1:((11*dw)/16)] <= di;
+	  end
+	  {4'b1100}: begin
+	     mem[addr[aw-1:4]][((13*dw)/16)-1:((12*dw)/16)] <= di;
+	  end
+	  {4'b1101}: begin
+	     mem[addr[aw-1:4]][((14*dw)/16)-1:((13*dw)/16)] <= di;
+	  end
+	  {4'b1110}: begin
+	     mem[addr[aw-1:4]][((15*dw)/16)-1:((14*dw)/16)] <= di;
+	  end
+	  {4'b1111}: begin
+	     mem[addr[aw-1:4]][dw-1:((15*dw)/16)] <= di;
+	  end
+	  
 	endcase
      end
 	

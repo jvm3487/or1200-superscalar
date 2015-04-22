@@ -118,7 +118,7 @@ assign mbist_so_o = mbist_si_i;
    or1200_spram_modified64 #
      (
       .aw(`OR1200_ICTAG),
-      .dw(`OR1200_ICTAG_W*4)
+      .dw(`OR1200_ICTAG_W*16)
       )
    ic_tag0
      (

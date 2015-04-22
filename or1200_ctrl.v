@@ -599,7 +599,10 @@ always @(posedge clk or `OR1200_RST_EVENT rst) begin
 		 ex_insn[63:32] <= {`OR1200_OR32_NOP, 26'h141_0000};
 	      end
 	      else if (dependency_hazard_stall) begin
-		 half_insn_done <= 1'b1;
+		 if (id_insn[31:26] != `OR1200_OR32_RFE) //added so that the second instruction will not be executed in case of a RFE in the first slot
+		   half_insn_done <= 1'b1;
+		 else
+		   half_insn_done <= 1'b0;
 		 ex_insn[31:0] <= id_insn[31:0];
 		 ex_insn[63:32] <= {`OR1200_OR32_NOP, 26'h141_0000};
 		 ex_insn_intermediate <= id_insn[63:32];
