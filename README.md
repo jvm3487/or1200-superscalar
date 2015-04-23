@@ -10,6 +10,7 @@ Current changes include:
 - Add or1200_ctrl_if_decode to take all the logic needed in instruction fetch stage to be used for both instructions
 - Add or1200_ctrl_id_decode to take all the lgoic needed in decode stage to be used for two instructions
 - Add stall logic in control to account for data and structural dependencies
+- Branch operations can be executed in first half or second half of instruction
 - Add two additional copies of register files to be able to read registers for two instructions at end of if stage
 - Add logic to save state of second instruction if half of an instruction is finished executing due to one wide execute
 - Change freeze logic to account for a 2 fetch instruction being half complete

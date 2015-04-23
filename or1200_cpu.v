@@ -269,6 +269,7 @@ wire	[dw-1:0]		operand_c;
 wire	[dw-1:0]		operand_d;
 reg	[dw-1:0]		operand_c_next;
 reg	[dw-1:0]		operand_d_next;
+reg     [dw-1:0] 		operand_branch;   
 wire	[dw-1:0]		alu_dataout;
 wire	[dw-1:0]		alu_dataoutc;
 wire	[dw-1:0]		lsu_dataout;
@@ -384,6 +385,7 @@ wire    			dependency_hazard_stall;
    reg [1:0] 			data_dependent_next;   
    reg [1:0] 			data_dependent_next_next;		
    wire 			same_stage_dslot;
+   wire				ex_branch_first;
 	
    //Used for or1200-monitor
    wire 	flag1;
@@ -392,6 +394,7 @@ wire    			dependency_hazard_stall;
    reg 	flag1_next;
    reg 	over1_next;
    reg 	carry1_next;  
+   reg  flag_branch;
    
 //
 // Send exceptions to Debug Unit
@@ -467,6 +470,20 @@ assign sig_range = sr[`OR1200_SR_OV];
 //
 // Instantiation of instruction fetch block
 //
+// Mux to determine which operand is the branch instruction
+always @(*)
+  if (ex_branch_first) begin
+     operand_branch <= operand_b;
+     flag_branch <= flag;
+  end
+  else begin
+     operand_branch <= operand_d;
+     if (flag_we_alu | flag_we_fpu)
+       flag_branch <= flagforwa;
+     else
+       flag_branch <= flag;
+  end
+   
 or1200_genpc #(.boot_adr(boot_adr)) or1200_genpc(
 	.clk(clk),
 	.rst(rst),
@@ -482,9 +499,9 @@ or1200_genpc #(.boot_adr(boot_adr)) or1200_genpc(
 	.except_start(except_start),
 	.except_prefix(sr[`OR1200_SR_EPH]),
 	.ex_branch_addrtarget(ex_branch_addrtarget),
-	.muxed_b(muxed_b),
-	.operand_b(operand_b),
-	.flag(flag),
+	.muxed_b(muxed_b),  //not used
+	.operand_b(operand_branch),
+	.flag(flag_branch),
 	.flagforw(flagforwa),
 	.ex_branch_taken(ex_branch_taken),
 	.epcr(epcr),
@@ -610,7 +627,8 @@ or1200_ctrl or1200_ctrl(
 	.data_dependent(data_dependent),
         .half_insn_done(half_insn_done),
 	.half_insn_done_next(half_insn_done_next),
-	.same_stage_dslot(same_stage_dslot)
+	.same_stage_dslot(same_stage_dslot),
+	.ex_branch_first(ex_branch_first)
 );
 
 //
@@ -997,7 +1015,7 @@ or1200_wbmux or1200_wbmux2(
 	.muxin_a(alu_dataoutc),
 	.muxin_b(lsu_dataout),
 	.muxin_c(sprs_dataout),
-	.muxin_d(ex_pc),
+	.muxin_d((ex_pc + 32'h4)),
         .muxin_e(fpu_dataout),
 	.muxout(rf_datawc),
 	.muxreg(wb_forwc),
