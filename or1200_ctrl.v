@@ -407,7 +407,7 @@ always @(posedge clk or `OR1200_RST_EVENT rst) begin
 	   id_insn <= {2{`OR1200_OR32_NOP, 26'h141_0000}};
 	end
 	else if (id_freeze & previous_stage_dslot) begin
-	   id_insn[63:32] <= {`OR1200_OR32_NOP};
+	   id_insn[63:32] <= {`OR1200_OR32_NOP, 26'h141_0000};
 	   id_insn[31:0] <= id_insn[31:0];
 	   
 `ifdef OR1200_VERBOSE
