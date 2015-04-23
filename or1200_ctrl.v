@@ -463,7 +463,10 @@ end
 //structural hazard check for MAC unit
 always @(id_macrc_opa or id_macrc_opc or id_insn or half_insn_done or id_macrc_op_next or same_stage_dslot or no_more_dslot) begin //dslot logic needed to keep from stalling for no reason
    if (((id_macrc_opa & !same_stage_dslot)| (id_macrc_opc & !no_more_dslot))  & (id_insn[63:58] != `OR1200_OR32_NOP)) begin
-      multiply_stall <= 1'b1;
+      if (id_macrc_opc)
+	multiply_stall <= 1'b1;
+      else
+	multiply_stall <= 1'b0;
       id_macrc_op <= 1'b1;
    end
    else begin
@@ -481,7 +484,10 @@ end
 //structural hazard check for LSU
 always @(id_lsu_opa or id_lsu_opc or id_insn or half_insn_done or id_lsu_op_next or same_stage_dslot or no_more_dslot) begin //dslot logic needed to keep from stalling for no reason
    if (((id_lsu_opa != `OR1200_LSUOP_NOP)  & (id_insn[63:58] != `OR1200_OR32_NOP) & !same_stage_dslot) | ((id_lsu_opc != `OR1200_LSUOP_NOP) & !no_more_dslot)) begin
-      load_or_store_stall <= 1'b1;
+      if (id_lsu_opc != `OR1200_LSUOP_NOP) //added to only stall if lsu operation is in the second half of pipeline
+	 load_or_store_stall <= 1'b1;
+      else 
+	 load_or_store_stall <= 1'b0;
       id_lsu_op <= id_lsu_opa;
    end
    else begin
@@ -499,7 +505,10 @@ end
 //structural hazard check for FPU
 always @(fpu_opa or fpu_opc or id_insn or half_insn_done or fpu_op_next or same_stage_dslot or no_more_dslot) begin
    if (((fpu_opa[`OR1200_FPUOP_WIDTH-1])  & (id_insn[63:58] != `OR1200_OR32_NOP) & !same_stage_dslot) | (fpu_opc[`OR1200_FPUOP_WIDTH-1] & !no_more_dslot)) begin //dslot logic needed to keep from stalling for no reason
-      fpu_hazard_stall <= 1'b1;
+      if (fpu_opc[`OR1200_FPUOP_WIDTH-1])
+	fpu_hazard_stall <= 1'b1;
+      else
+	fpu_hazard_stall <= 1'b0;
       fpu_op <= fpu_opa;
    end
    else begin
@@ -514,7 +523,8 @@ always @(fpu_opa or fpu_opc or id_insn or half_insn_done or fpu_op_next or same_
    end 
 end 
 
-//structural hazard check for Branch Unit (genpc)
+//no longer structural hazard check for Branch Unit since branches can now be executed by either stage of pipeline
+//resolves id_branch_op for genpc.v
 //only need to stall if second insn is a branch because other ALU can handle normal dslot instruction
 always @(id_branch_opa or id_branch_opc or id_insn or same_stage_dslot or no_more_dslot) begin
    if ((id_insn[31:26] != `OR1200_OR32_NOP) & !same_stage_dslot) //dslot logic needed to keep from stalling for no reason
@@ -523,17 +533,16 @@ always @(id_branch_opa or id_branch_opc or id_insn or same_stage_dslot or no_mor
      id_branch_op <= id_branch_opc;
    else
      id_branch_op <= `OR1200_BRANCHOP_NOP;
-   /*if ((id_branch_opc != `OR1200_BRANCHOP_NOP) & (id_insn[63:58] != `OR1200_OR32_NOP) & !no_more_dslot) 
-     branch_hazard_stall <= 1'b1;
-   else
-     branch_hazard_stall <= 1'b0;*/ 
 end 
 
 //stall due to waiting on one of the structures to conclude
 //this includes multiplication, lsu, fpu, or move to spr when dc writethrough
 always @(wait_ona or wait_onc or id_insn or half_insn_done or wait_on_next or same_stage_dslot or no_more_dslot) begin
    if (((wait_ona != `OR1200_WAIT_ON_NOTHING) & (id_insn[63:58] != `OR1200_OR32_NOP) & !same_stage_dslot) | ((wait_onc != `OR1200_WAIT_ON_NOTHING) & !no_more_dslot)) begin //dslot logic needed to keep from stalling for no reason
-      wait_hazard_stall <= 1'b1;
+      if (wait_onc != `OR1200_WAIT_ON_NOTHING) //don't stall if able to handle the other instruction
+	wait_hazard_stall <= 1'b1;
+      else
+	wait_hazard_stall <= 1'b0;
       wait_on <= wait_ona;
    end
    else begin
@@ -552,7 +561,10 @@ end
 //added the !id_insn[48] to make sure no instructions are executed after a RFE
 always @(multicyclea or multicyclec or id_insn or half_insn_done or multicycle_next or same_stage_dslot or no_more_dslot) begin
    if (((multicyclea != `OR1200_ONE_CYCLE) & ((id_insn[63:58] != `OR1200_OR32_NOP) | (!id_insn[48] & (id_insn[31:26] == `OR1200_OR32_RFE))) & !same_stage_dslot) | ((multicyclec != `OR1200_ONE_CYCLE) & !no_more_dslot)) begin //dslot logic needed to keep from stalling for no reason
-      multicycle_hazard_stall <= 1'b1;
+      if (multicyclec != `OR1200_ONE_CYCLE) //don't stall if able to handle the other instruction
+	multicycle_hazard_stall <= 1'b1;
+      else
+	multicycle_hazard_stall <= 1'b0;
       multicycle <= multicyclea;
    end
    else begin
@@ -605,7 +617,7 @@ always @(posedge clk or `OR1200_RST_EVENT rst) begin
 		 ex_insn[31:0] <= id_insn[31:0];
 		 ex_insn[63:32] <= {`OR1200_OR32_NOP, 26'h141_0000};
 	      end
-	      else if (dependency_hazard_stall) begin
+	      else if (dependency_hazard_stall | (id_insn[31:26] == `OR1200_OR32_RFE)) begin
 		 if (id_insn[31:26] != `OR1200_OR32_RFE) //added so that the second instruction will not be executed in case of a RFE in the first slot
 		   half_insn_done <= 1'b1;
 		 else
