@@ -51,9 +51,7 @@
 
 module or1200_ctrl_id_decode
   (
-   // Clock and reset
-   clk, rst, id_insn, ex_freeze, id_freeze, ex_flushpipe, id_simm, id_pc, du_hwbkpt, abort_mvspr, sel_imm, rf_addrw1, rf_addrw2, rfwb_op1, rfwb_op2, wb_rfaddrw1, wbforw_valid1, wb_rfaddrw2, wbforw_valid2, id_branch_op, id_simm, id_macrc_op, ex_macrc_op, sig_syscall, dc_no_writethrough, id_void, /*id_branch_addrtarget,*/ fpu_op, multicycle, wait_on, rf_addrw, except_illegal, alu_op, alu_op2, spr_read, spr_write, mac_op, rfwb_op, id_lsu_op, comp_op, sig_trap, sel_a, sel_b, ex_branch_op, ex_simm, ex_branch_addrtarget
-   
+   clk, rst, id_insn, ex_freeze, id_freeze, ex_flushpipe, id_pc, du_hwbkpt, abort_mvspr, sel_imm, rf_addrw1, rf_addrw2, rfwb_op1, rfwb_op2, wb_rfaddrw1, wbforw_valid1, wb_rfaddrw2, wbforw_valid2, id_branch_op, id_simm, id_macrc_op, ex_macrc_op, sig_syscall, dc_no_writethrough, id_void, fpu_op, multicycle, wait_on, rf_addrw, except_illegal, alu_op, alu_op2, spr_read, spr_write, mac_op, rfwb_op, id_lsu_op, comp_op, sig_trap, sel_a, sel_b, ex_branch_op, ex_simm, ex_branch_addrtarget  
    );
 
    input					clk;
@@ -292,7 +290,7 @@ always @(id_insn) begin
 `endif		   
 `ifdef OR1200_FPU_IMPLEMENTED
        `OR1200_OR32_FLOAT: begin
-	 wait_on = id_insn[`OR1200_FPUOP_DOUBLE_BIT] ? 0 : `OR1200_WAIT_ON_FPU;
+	 wait_on = id_insn[`OR1200_FPUOP_DOUBLE_BIT] ? 2'b0 : `OR1200_WAIT_ON_FPU;
        end
 `endif
 `ifndef OR1200_DC_WRITEHROUGH
@@ -834,7 +832,7 @@ always @(*)
 	else
 	  sel_b = {1'b0, `OR1200_SEL_RF};
 
-   //
+//
 // Generation of ex_branch_op
 //
 always @(posedge clk or `OR1200_RST_EVENT rst)
@@ -845,7 +843,7 @@ always @(posedge clk or `OR1200_RST_EVENT rst)
 	else if (!ex_freeze)
 		ex_branch_op <=  id_branch_op;
 
-   //
+//
 // EX Sign extension of branch offset
 //
 

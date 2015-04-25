@@ -135,6 +135,7 @@ input	[31:0]			spr_dat_i;
 //
 // Internal wires and regs
 //
+wire    [31:0] 			ictag_addr_next_insn;   
 wire	[1:0]			tag_v; //modified
 wire	[(`OR1200_ICTAG_W*2)-3:0]	tag; //modified
 wire	[dw-1:0]		to_icram;
@@ -159,6 +160,7 @@ wire				icfsm_tag_we;
 wire [(dw*2)-1:0]		icbiu_dat_i_intermediate; //added for twice the length		
 reg 				ic_inv_q;
 reg  [(dw-1):0]			from_icram_upper_intermediate;
+wire    			not_two_insn;
  				
 `ifdef OR1200_BIST
 //
@@ -248,7 +250,7 @@ always @(tag or saved_addr or tag_v or from_icram or from_icram_upper_intermedia
 	  end
 	  else begin
 	     tagcomp_miss = 1'b0;
-	     if ((tag[(`OR1200_ICTAG_W*2)-3:`OR1200_ICTAG_W-1] != saved_addr[31:`OR1200_ICTAGL]) | !tag_v[1] | (from_icram[(dw*2)-1:dw] == {dw{1'b0}}))
+	     if ((tag[(`OR1200_ICTAG_W*2)-3:`OR1200_ICTAG_W-1] != saved_addr[31:`OR1200_ICTAGL]) | !tag_v[1] | (from_icram[(dw*2)-1:dw] == {dw{1'b0}}) | not_two_insn) //not_two_insn added to keep pipeline from running ahead of fetch
 	       from_icram_upper_intermediate = {`OR1200_OR32_NOP, 26'h141_0000}; //nop added for two insns 141
 	     else
 	       from_icram_upper_intermediate = from_icram[(dw*2)-1:dw];
@@ -276,7 +278,8 @@ or1200_ic_fsm or1200_ic_fsm(
 	.first_miss_ack(icfsm_first_miss_ack),
 	.first_miss_err(icfsm_first_miss_err),
 	.burst(icfsm_burst),
-	.tag_we(icfsm_tag_we)
+	.tag_we(icfsm_tag_we),
+	.not_two_insn(not_two_insn)
 );
 
 //
@@ -298,6 +301,14 @@ or1200_ic_ram or1200_ic_ram(
 	.dataout(from_icram)
 );
 
+//This figures out the tag request for the second instruction with the second write port
+//Allows fetching of a 64 byte block instead of the normal 32 bytes
+//15/16 possible double instructions will work instead of 7/8
+         
+assign ictag_addr_next_insn = ic_inv ? 
+		    (spr_dat_i + 32'h4): 
+		    (ic_addr + 32'h4);
+    
 //
 // Instantiation of IC TAG memory
 //
@@ -311,6 +322,7 @@ or1200_ic_tag or1200_ic_tag(
 	.mbist_ctrl_i(mbist_ctrl_i),
 `endif
 	.addr(ictag_addr),
+	.sec_read_addr(ictag_addr_next_insn[`OR1200_ICINDXH:`OR1200_ICLS]),
 	.en(ictag_en),
 	.we(ictag_we),
 	.datain({ic_addr[31:`OR1200_ICTAGL], ictag_v}),

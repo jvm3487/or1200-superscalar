@@ -300,6 +300,9 @@ output  				ex_branch_first;
    wire 					except_illegalc_inter;
    reg 						except_illegala;
    reg 						except_illegalc;
+   wire 					id_illegala;
+   wire 					id_illegalc;
+   
    
 //
 // Force fetch of delay slot instruction when jump/branch is preceeded by 
@@ -402,7 +405,12 @@ always @(posedge clk or `OR1200_RST_EVENT rst) begin
 	   id_insn <= {2{`OR1200_OR32_NOP, 26'h141_0000}};
 	end
 	else if (!id_freeze) begin
-	   id_insn <= if_insn;
+	   id_insn[31:0] <= if_insn[31:0];
+	   //This was added because after the cycle following branches was removed theres a chance a nop is fetched between a taken branch and the target of the branch
+	   if (ex_branch_taken & !no_more_dslot)
+	     id_insn[63:32] <= {`OR1200_OR32_NOP, 26'h141_0000};
+	   else
+	     id_insn[63:32] <= if_insn[63:32];
 	//This was added due to the possibility that a id_freeze goes high in the same cycle that no_more_dslot is asserted so the pipeline must be purged appropriately
 	end
 	else if (id_freeze & same_stage_dslot) begin
@@ -411,7 +419,7 @@ always @(posedge clk or `OR1200_RST_EVENT rst) begin
 	else if (id_freeze & previous_stage_dslot) begin
 	   id_insn[63:32] <= {`OR1200_OR32_NOP, 26'h141_0000};
 	   id_insn[31:0] <= id_insn[31:0];
-	   
+
 `ifdef OR1200_VERBOSE
 // synopsys translate_off
 		$display("%t: id_insn <= %h", $time, if_insn);
@@ -485,9 +493,9 @@ end
 always @(id_lsu_opa or id_lsu_opc or id_insn or half_insn_done or id_lsu_op_next or same_stage_dslot or no_more_dslot) begin //dslot logic needed to keep from stalling for no reason
    if (((id_lsu_opa != `OR1200_LSUOP_NOP)  & (id_insn[63:58] != `OR1200_OR32_NOP) & !same_stage_dslot) | ((id_lsu_opc != `OR1200_LSUOP_NOP) & !no_more_dslot)) begin
       if (id_lsu_opc != `OR1200_LSUOP_NOP) //added to only stall if lsu operation is in the second half of pipeline
-	 load_or_store_stall <= 1'b1;
+	load_or_store_stall <= 1'b1;
       else 
-	 load_or_store_stall <= 1'b0;
+	load_or_store_stall <= 1'b0;
       id_lsu_op <= id_lsu_opa;
    end
    else begin
@@ -527,9 +535,9 @@ end
 //resolves id_branch_op for genpc.v
 //only need to stall if second insn is a branch because other ALU can handle normal dslot instruction
 always @(id_branch_opa or id_branch_opc or id_insn or same_stage_dslot or no_more_dslot) begin
-   if ((id_insn[31:26] != `OR1200_OR32_NOP) & !same_stage_dslot) //dslot logic needed to keep from stalling for no reason
+   if ((id_branch_opa != `OR1200_BRANCHOP_NOP) & (id_insn[31:26] != `OR1200_OR32_NOP) & !same_stage_dslot) //dslot logic needed to keep from stalling for no reason
      id_branch_op <= id_branch_opa;
-   else if ((id_insn[63:58] != `OR1200_OR32_NOP) & !no_more_dslot)
+   else if ((id_branch_opc != `OR1200_BRANCHOP_NOP) & (id_insn[63:58] != `OR1200_OR32_NOP) & !no_more_dslot)
      id_branch_op <= id_branch_opc;
    else
      id_branch_op <= `OR1200_BRANCHOP_NOP;
@@ -580,8 +588,8 @@ always @(multicyclea or multicyclec or id_insn or half_insn_done or multicycle_n
 end
 
 //stall due to system call or trap  
-always @(id_insn or du_hwbkpt or same_stage_dslot or no_more_dslot) begin
-   if (((id_insn[31:26] == `OR1200_OR32_XSYNC)  & (id_insn[63:58] != `OR1200_OR32_NOP) & !same_stage_dslot) | ((id_insn[63:58] == `OR1200_OR32_XSYNC) & !no_more_dslot) | du_hwbkpt) begin //dslot logic needed to keep from stalling for no reason
+always @(id_insn or du_hwbkpt or same_stage_dslot or no_more_dslot or id_illegala or id_illegalc) begin
+   if (((id_insn[31:26] == `OR1200_OR32_XSYNC)  & ((id_insn[63:58] != `OR1200_OR32_NOP) | !id_insn[48]) & !same_stage_dslot) | ((id_insn[63:58] == `OR1200_OR32_XSYNC) & !no_more_dslot) | du_hwbkpt | id_illegala | id_illegalc) begin //dslot logic needed to keep from stalling for no reason
       system_stall <= 1'b1;
    end
    else begin
@@ -696,7 +704,7 @@ always @(posedge clk or `OR1200_RST_EVENT rst) begin
      ex_branch_op_next <= ex_branch_opc;
      ex_simm_next <= ex_simmc;
      ex_branch_addrtarget_next <= ex_branch_addrtargetc;
-     except_illegal_next <= except_illegalc;
+     except_illegal_next <= except_illegalc_inter;
      
   end
 end // always @ (posedge clk or `OR1200_RST_EVENT rst)
@@ -850,7 +858,8 @@ or1200_ctrl_id_decode or1200_ctrl_id_decode1(
 	.sel_b(sel_b),
 	.ex_branch_op(ex_branch_opa), //sync
         .ex_simm(ex_simma), //sync
-	.ex_branch_addrtarget(ex_branch_addrtargeta) //sync	     
+	.ex_branch_addrtarget(ex_branch_addrtargeta), //sync
+	.id_illegal(id_illegala) 	     
 );
 
 //This is needed because the program counter of the second instruction is +4 from the first   
@@ -900,7 +909,8 @@ or1200_ctrl_id_decode or1200_ctrl_id_decode2(
 	.sel_b(sel_d),
 	.ex_branch_op(ex_branch_opc), //sync 	
 	.ex_simm(ex_simmc), 			  
-	.ex_branch_addrtarget(ex_branch_addrtargetc) //sync
+	.ex_branch_addrtarget(ex_branch_addrtargetc), //sync
+	.id_illegal(id_illegalc)				     
 );
 
    

@@ -70,7 +70,7 @@ module or1200_ic_fsm(
 	tagcomp_miss, 
 	biudata_valid, biudata_error, 
         start_addr, saved_addr,
-	icram_we, tag_we,
+	icram_we, tag_we, not_two_insn,
         biu_read, 
         first_hit_ack, first_miss_ack, first_miss_err,
 	burst
@@ -96,7 +96,9 @@ output				first_miss_ack;
 output				first_miss_err;
 output				burst;
 output				tag_we;
-
+output   			not_two_insn;
+   
+   
 //
 // Internal wires and regs
 //
@@ -107,6 +109,8 @@ reg				hitmiss_eval;
 reg				load;
 reg				cache_inhibit;
 reg 				last_eval_miss; // JPB
+reg 				not_two_insn;
+ 				
    
    //
    // Generate of ICRAM write enables
@@ -142,6 +146,14 @@ reg 				last_eval_miss; // JPB
    assign burst = (state == `OR1200_ICFSM_CFETCH) & tagcomp_miss & 
 		  !cache_inhibit | (state == `OR1200_ICFSM_LREFILL3);
 
+   //Do not execute two instructions because refill is going on
+   //Keeps the second instruction from running ahead of the input from main memory
+   always @(*)
+     if (state == `OR1200_ICFSM_LREFILL3)
+       not_two_insn <= 1'b1;
+     else
+       not_two_insn <= 1'b0;
+   
    //
    // Main IC FSM
    //

@@ -414,7 +414,10 @@ module or1200_monitor;
 	    display_arch_state(1);
 	// small hack to stop simulation (l.nop 1):
 	if (`OR1200_TOP.`CPU_cpu.`CPU_ctrl.wb_insn == 32'h1500_0001 || `OR1200_TOP.`CPU_cpu.`CPU_ctrl.wb_insn_intermediate == 32'h1500_0001) begin
-	   get_gpr(3, r3);
+	   if (`OR1200_TOP.`CPU_cpu.`CPU_ctrl.wb_insn == 32'h1500_0001)
+	     get_gpr2(3, r3);
+	   else if (`OR1200_TOP.`CPU_cpu.`CPU_ctrl.wb_insn_intermediate == 32'h1500_0001)
+	     get_gpr(3, r3);
 	   $fdisplay(fgeneral, "%t: l.nop exit (%h)", $time, r3);
 `ifdef OR1200_MONITOR_VERBOSE_NOPS
        // Note that the 'expect' scripts in or1ksim's test suite look for strings
@@ -429,7 +432,10 @@ module or1200_monitor;
 	end
 	// simulation reports (l.nop 2)
 	if (`OR1200_TOP.`CPU_cpu.`CPU_ctrl.wb_insn == 32'h1500_0002 || `OR1200_TOP.`CPU_cpu.`CPU_ctrl.wb_insn_intermediate == 32'h1500_0002) begin
-	   get_gpr(3, r3);
+	   if (`OR1200_TOP.`CPU_cpu.`CPU_ctrl.wb_insn == 32'h1500_0002)
+	     get_gpr2(3, r3);
+	   else if (`OR1200_TOP.`CPU_cpu.`CPU_ctrl.wb_insn_intermediate == 32'h1500_0002)
+	     get_gpr(3, r3);
 	   $fdisplay(fgeneral, "%t: l.nop report (0x%h)", $time, r3);
 `ifdef OR1200_MONITOR_VERBOSE_NOPS
 	   // Note that the 'expect' scripts in or1ksim's test suite look for strings
@@ -440,12 +446,18 @@ module or1200_monitor;
 	end
 	// simulation printfs (l.nop 3)
 	if (`OR1200_TOP.`CPU_cpu.`CPU_ctrl.wb_insn == 32'h1500_0003 || `OR1200_TOP.`CPU_cpu.`CPU_ctrl.wb_insn_intermediate == 32'h1500_0003) begin
-	   get_gpr(3, r3);
+	   if (`OR1200_TOP.`CPU_cpu.`CPU_ctrl.wb_insn == 32'h1500_0003)
+	     get_gpr2(3, r3);
+	   else if (`OR1200_TOP.`CPU_cpu.`CPU_ctrl.wb_insn_intermediate == 32'h1500_0003)
+	     get_gpr(3, r3);
 	   $fdisplay(fgeneral, "%t: l.nop printf (%h)", $time, r3);
 	end
 	if (`OR1200_TOP.`CPU_cpu.`CPU_ctrl.wb_insn == 32'h1500_0004 || `OR1200_TOP.`CPU_cpu.`CPU_ctrl.wb_insn_intermediate == 32'h1500_0004) begin
 	   // simulation putc (l.nop 4)
-	   get_gpr(3, r3);
+	   if (`OR1200_TOP.`CPU_cpu.`CPU_ctrl.wb_insn == 32'h1500_0004)
+	     get_gpr2(3, r3);
+	   else if (`OR1200_TOP.`CPU_cpu.`CPU_ctrl.wb_insn_intermediate == 32'h1500_0004)
+	     get_gpr(3, r3);
 	   $write("%c", r3);
 	   $fdisplay(fgeneral, "%t: l.nop putc (%c)", $time, r3);
 	end

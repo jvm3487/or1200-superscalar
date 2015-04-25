@@ -51,7 +51,7 @@
 
 module or1200_ctrl_id_decode
   (
-   clk, rst, id_insn, ex_freeze, id_freeze, ex_flushpipe, id_pc, du_hwbkpt, abort_mvspr, sel_imm, rf_addrw1, rf_addrw2, rfwb_op1, rfwb_op2, wb_rfaddrw1, wbforw_valid1, wb_rfaddrw2, wbforw_valid2, id_branch_op, id_simm, id_macrc_op, ex_macrc_op, sig_syscall, dc_no_writethrough, id_void, fpu_op, multicycle, wait_on, rf_addrw, except_illegal, alu_op, alu_op2, spr_read, spr_write, mac_op, rfwb_op, id_lsu_op, comp_op, sig_trap, sel_a, sel_b, ex_branch_op, ex_simm, ex_branch_addrtarget  
+   clk, rst, id_insn, ex_freeze, id_freeze, ex_flushpipe, id_pc, du_hwbkpt, abort_mvspr, sel_imm, rf_addrw1, rf_addrw2, rfwb_op1, rfwb_op2, wb_rfaddrw1, wbforw_valid1, wb_rfaddrw2, wbforw_valid2, id_branch_op, id_simm, id_macrc_op, ex_macrc_op, sig_syscall, dc_no_writethrough, id_void, fpu_op, multicycle, wait_on, rf_addrw, except_illegal, alu_op, alu_op2, spr_read, spr_write, mac_op, rfwb_op, id_lsu_op, comp_op, sig_trap, sel_a, sel_b, ex_branch_op, ex_simm, ex_branch_addrtarget, id_illegal
    );
 
    input					clk;
@@ -98,6 +98,7 @@ module or1200_ctrl_id_decode
    output [`OR1200_BRANCHOP_WIDTH-1:0] 		ex_branch_op;
    output [31:0] 				ex_simm;
    output [31:2] 				ex_branch_addrtarget;
+   output 					id_illegal;
    wire [31:2] 					id_branch_addrtarget;
    reg [31:0] 					id_simm;
    reg 						sig_syscall;
@@ -124,6 +125,8 @@ module or1200_ctrl_id_decode
    reg [`OR1200_BRANCHOP_WIDTH-1:0] 		ex_branch_op;
    reg [31:0] 					ex_simm;
    reg [31:2] 					ex_branch_addrtarget;
+   reg 						id_illegal;
+   
    
 assign id_void = (id_insn[31:26] == `OR1200_OR32_NOP) & id_insn[16];
     
@@ -326,13 +329,9 @@ end
 //
 // Decode of except_illegal
 //
-always @(posedge clk or `OR1200_RST_EVENT rst) begin
-	if (rst == `OR1200_RST_VALUE)
-		except_illegal <=  1'b0;
-	else if (!ex_freeze & id_freeze | ex_flushpipe)
-		except_illegal <=  1'b0;
-	else if (!ex_freeze) begin
-		case (id_insn[31:26])		// synopsys parallel_case
+//id_illegal needed because of the possibility that the first instruction is legal and the second instruction is illegal
+always @(id_insn) begin
+   case (id_insn[31:26])		// synopsys parallel_case
 
 		`OR1200_OR32_J,
 		`OR1200_OR32_JAL,
@@ -375,15 +374,15 @@ always @(posedge clk or `OR1200_RST_EVENT rst) begin
 		`OR1200_OR32_CUST5,
 `endif
 	`OR1200_OR32_NOP:
-		except_illegal <=  1'b0;
+		id_illegal <=  1'b0;
 `ifdef OR1200_FPU_IMPLEMENTED
 	    `OR1200_OR32_FLOAT:
                 // Check it's not a double precision instruction
-                except_illegal <=  id_insn[`OR1200_FPUOP_DOUBLE_BIT];
+                id_illegal <=  id_insn[`OR1200_FPUOP_DOUBLE_BIT];
 `endif	      
 
 	`OR1200_OR32_ALU:
-		except_illegal <=  1'b0 
+		id_illegal <=  1'b0 
 
 `ifdef OR1200_MULT_IMPLEMENTED
 `ifdef OR1200_DIV_IMPLEMENTED
@@ -426,9 +425,19 @@ always @(posedge clk or `OR1200_RST_EVENT rst) begin
 
 		// Illegal and OR1200 unsupported instructions
 	default:
-		except_illegal <=  1'b1;
+		id_illegal <=  1'b1;
 
-	endcase
+   endcase
+end
+   
+
+always @(posedge clk or `OR1200_RST_EVENT rst) begin
+	if (rst == `OR1200_RST_VALUE)
+		except_illegal <=  1'b0;
+	else if (!ex_freeze & id_freeze | ex_flushpipe)
+		except_illegal <=  1'b0;
+	else if (!ex_freeze) begin
+	   except_illegal <= id_illegal;
 	end // if (!ex_freeze)
 end
    

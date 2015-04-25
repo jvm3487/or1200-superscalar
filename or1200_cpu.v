@@ -783,7 +783,8 @@ assign flagforwa = (flag_we_alu & flagforw_alu) | (flagforw_fpu & flag_we_fpu);
 
 //second write dominates if second ALU instruction is valid
 assign flagforw = flag_we_aluc ? flagforw_aluc : (flag_we_alu & flagforw_alu) | (flagforw_fpu & flag_we_fpu);  
-assign flag_we = (flag_we_alu | flag_we_fpu | flag_we_aluc) & ~abort_mvspr;
+assign flag_we = !ex_freeze & (flag_we_alu | flag_we_fpu | flag_we_aluc) & ~abort_mvspr; //ex_freeze added to keep from failing if stall in cycle with branch in first slot and an instruction that changed the flag in the second slot
+//this would cause the instruction following a branch that depended on a flag to change the status of the flag
 
 assign ovforw = ov_we_aluc ? ovforwc : ovforwa;
 assign ov_we_alu = ov_we_alua | ov_we_aluc;
@@ -1121,7 +1122,9 @@ or1200_except or1200_except(
 	.dsx(dsx),
 	.ex_two_insns(ex_two_insns),
 	.ex_two_insns_next(ex_two_insns_next),
-	.half_insn_done(half_insn_done)
+	.half_insn_done(half_insn_done),
+	.same_stage_dslot(same_stage_dslot),
+	.ex_branch_first(ex_branch_first)
 );
 
 //
