@@ -535,7 +535,9 @@ end
 //resolves id_branch_op for genpc.v
 //only need to stall if second insn is a branch because other ALU can handle normal dslot instruction
 always @(id_branch_opa or id_branch_opc or id_insn or same_stage_dslot or no_more_dslot) begin
-   if ((id_branch_opa != `OR1200_BRANCHOP_NOP) & (id_insn[31:26] != `OR1200_OR32_NOP) & !same_stage_dslot) //dslot logic needed to keep from stalling for no reason
+   if (half_insn_done)
+     id_branch_op <= id_branch_op_next;
+   else if ((id_branch_opa != `OR1200_BRANCHOP_NOP) & (id_insn[31:26] != `OR1200_OR32_NOP) & !same_stage_dslot) //dslot logic needed to keep from stalling for no reason
      id_branch_op <= id_branch_opa;
    else if ((id_branch_opc != `OR1200_BRANCHOP_NOP) & (id_insn[63:58] != `OR1200_OR32_NOP) & !no_more_dslot)
      id_branch_op <= id_branch_opc;
@@ -688,6 +690,7 @@ always @(posedge clk or `OR1200_RST_EVENT rst) begin
      multicycle_next <= multicyclec;
      wait_on_next <= wait_onc;
      id_lsu_op_next <= id_lsu_opc;
+     id_branch_op_next <= id_branch_opc;
      id_macrc_op_next <= id_macrc_opc;	
      ex_macrc_op_next <= ex_macrc_opc;
      sig_syscall_next <= sig_syscallc;
