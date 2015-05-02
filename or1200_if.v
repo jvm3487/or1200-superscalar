@@ -113,8 +113,7 @@ reg	[31:0]		addr_saved;
 reg	[2:0]		err_saved;
 reg			saved;
 reg 			icpu_ack_i_next;
-reg 	[31:0]		icpu_adr_i_next;
- 			
+reg 	[31:0]		icpu_adr_i_next;			
 	
 assign save_insn = (icpu_ack_i | icpu_err_i) & if_freeze & !saved; 
 assign saving_if_insn = !if_flushpipe & save_insn;
@@ -133,8 +132,7 @@ always @(posedge clk or `OR1200_RST_EVENT rst)
 // IF stage insn
 //
 assign if_insn = no_more_dslot | rfe | if_bypass ? {2{`OR1200_OR32_NOP, 26'h041_0000}} : saved ? insn_saved : icpu_ack_i ? icpu_dat_i : {2{`OR1200_OR32_NOP, 26'h061_0000}}; //161 is used for exceptions 
-//the following is just used for exceptions
-//it has been modified to take into account the possibility of two insns
+//The following has been modified to take into account the possibility of two insns
 assign if_pc = dependency_hazard_stall ? {icpu_adr_i[31:2], 2'h0} : saved ? addr_saved : {icpu_adr_i[31:2], 2'h0};
 // : {icpu_adr_i_next[31:2], 2'h0}; //if no acknowledge it is the last request
 //it appears if_stall seems to almost mirror if_freeze
