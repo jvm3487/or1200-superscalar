@@ -112,8 +112,6 @@ reg	[63:0]		insn_saved; //modified for two insns
 reg	[31:0]		addr_saved;
 reg	[2:0]		err_saved;
 reg			saved;
-reg 			icpu_ack_i_next;
-reg 	[31:0]		icpu_adr_i_next;			
 	
 assign save_insn = (icpu_ack_i | icpu_err_i) & if_freeze & !saved; 
 assign saving_if_insn = !if_flushpipe & save_insn;
@@ -134,29 +132,17 @@ always @(posedge clk or `OR1200_RST_EVENT rst)
 assign if_insn = no_more_dslot | rfe | if_bypass ? {2{`OR1200_OR32_NOP, 26'h041_0000}} : saved ? insn_saved : icpu_ack_i ? icpu_dat_i : {2{`OR1200_OR32_NOP, 26'h061_0000}}; //161 is used for exceptions 
 //The following has been modified to take into account the possibility of two insns
 assign if_pc = dependency_hazard_stall ? {icpu_adr_i[31:2], 2'h0} : saved ? addr_saved : {icpu_adr_i[31:2], 2'h0};
-// : {icpu_adr_i_next[31:2], 2'h0}; //if no acknowledge it is the last request
 //it appears if_stall seems to almost mirror if_freeze
 //primary difference is that if if_freeze is high and an instruction is being saved, than if_stall will be low
 //if_freeze is defined in the freeze.v file
 //however if_freeze is dependent on if_stall and will also be high if if_stall is high and lsu_unstall is low
 //however if_freeze can go high for other reasons including a lsu_stall
-assign if_stall = !icpu_err_i & !icpu_ack_i & !saved & (!no_more_dslot | !icpu_ack_i_next); //no_more_dslot and icpu_ack_i_next removes the cycle lost after every branch that was present in the one-wide version
+assign if_stall = !icpu_err_i & !icpu_ack_i & !saved;    
 assign genpc_refetch = saved & icpu_ack_i; 
 //I haven't found a reason to change these for two insns yet (three exception lines below) since the second insn will never straddle a page/bus
 assign except_itlbmiss = no_more_dslot ? 1'b0 : saved ? err_saved[0] : icpu_err_i & (icpu_tag_i == `OR1200_ITAG_TE);
 assign except_immufault = no_more_dslot ? 1'b0 : saved ? err_saved[1] : icpu_err_i & (icpu_tag_i == `OR1200_ITAG_PE);
 assign except_ibuserr = no_more_dslot ? 1'b0 : saved ? err_saved[2] : icpu_err_i & (icpu_tag_i == `OR1200_ITAG_BE);
-
-
-//See if_stall note above  
-always @(posedge clk or `OR1200_RST_EVENT rst)
-  if (rst == `OR1200_RST_VALUE) begin
-     icpu_ack_i_next <= 1'b0;
-  end
-  else begin
-     icpu_ack_i_next <= icpu_ack_i;
-  end
-
    
 //
 // Flag for saved insn/address

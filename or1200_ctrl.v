@@ -725,7 +725,7 @@ always @(*) begin
       ex_macrc_op <= ex_macrc_op_next;
       mac_op <= mac_op_next;
       ex_branch_op <= ex_branch_op_next;
-      ex_branch_first <= 1'b1; //branch is first instruction in pipeline
+      ex_branch_first <= 1'b1; //branch is now first instruction in pipeline
       dc_no_writethrough <= dc_no_writethrough_next;      
       spr_read <= spr_read_next;
       spr_write <= spr_write_next;
@@ -762,8 +762,7 @@ always @(*) begin
 	 end
 	 else begin
 	    ex_branch_op <= `OR1200_BRANCHOP_NOP;
-	    ex_branch_addrtarget <= ex_branch_addrtargeta; //don't care
-	    ex_branch_first <= 1'b1; //don't care
+	    ex_branch_first <= 1'b0;
 	 end
 	 dc_no_writethrough <= dc_no_writethrougha;
 	 spr_read <= spr_reada;
@@ -779,8 +778,7 @@ always @(*) begin
 	 ex_macrc_op <= 1'b0;
 	 mac_op <= `OR1200_MACOP_NOP;
 	 ex_branch_op <= `OR1200_BRANCHOP_NOP;
-	 ex_branch_addrtarget <= ex_branch_addrtargeta; //don't care
-	 ex_branch_first <= 1'b1; //don't care
+	 ex_branch_first <= 1'b0;
 	 dc_no_writethrough <= 1'b0;
 	 spr_read <= 1'b0;
 	 spr_write <= 1'b0;
