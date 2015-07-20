@@ -26,5 +26,4 @@ Current changes include:
 - Modify branch stall logic in the event that a stall occurs in the instruction prior to branch
 - Modify signal to instruction cache in the event that branch occurs in instruction following a delay slot
 - Modify exception signal to accurately record next instruction to be executed
-- Remove extra stall cycle following every branch that was unnessecary
 - Modify simulator (or1200_monitor.v) to track execution of two insns
