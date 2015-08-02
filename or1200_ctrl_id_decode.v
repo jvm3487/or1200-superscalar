@@ -51,7 +51,7 @@
 
 module or1200_ctrl_id_decode
   (
-   clk, rst, id_insn, ex_freeze, id_freeze, ex_flushpipe, id_pc, du_hwbkpt, abort_mvspr, sel_imm, rf_addrw1, rf_addrw2, rfwb_op1, rfwb_op2, wb_rfaddrw1, wbforw_valid1, wb_rfaddrw2, wbforw_valid2, id_branch_op, id_simm, id_macrc_op, ex_macrc_op, sig_syscall, dc_no_writethrough, id_void, fpu_op, multicycle, wait_on, rf_addrw, except_illegal, alu_op, alu_op2, spr_read, spr_write, mac_op, rfwb_op, id_lsu_op, comp_op, sig_trap, sel_a, sel_b, ex_branch_op, ex_simm, ex_branch_addrtarget, id_illegal
+   clk, rst, id_insn, ex_freeze, id_freeze, ex_flushpipe, id_pc, du_hwbkpt, abort_mvspr, sel_imm, rf_addrw1, rf_addrw2, rfwb_op1, rfwb_op2, wb_rfaddrw1, wbforw_valid1, wb_rfaddrw2, wbforw_valid2, id_branch_op, id_simm, id_mac_op, id_macrc_op, sig_syscall, dc_no_writethrough, id_void, fpu_op, multicycle, wait_on, rf_addrw, alu_op, alu_op2, spr_read, spr_write, rfwb_op, id_lsu_op, comp_op, sig_trap, sel_a, sel_b, ex_branch_op, ex_simm, ex_branch_addrtarget, id_illegal
    );
 
    input					clk;
@@ -74,8 +74,8 @@ module or1200_ctrl_id_decode
    input 					wbforw_valid2;
    input [`OR1200_BRANCHOP_WIDTH-1:0] 		id_branch_op;
    output [31:0] 				id_simm;
+   output [`OR1200_MACOP_WIDTH-1:0] 		id_mac_op;		
    output 					id_macrc_op;
-   output 					ex_macrc_op;
    output 					sig_syscall;
    output 					dc_no_writethrough;
    output 					id_void;		
@@ -83,12 +83,10 @@ module or1200_ctrl_id_decode
    output [`OR1200_MULTICYCLE_WIDTH-1:0] 	multicycle;
    output [`OR1200_WAIT_ON_WIDTH-1:0] 		wait_on; 
    output [`OR1200_REGFILE_ADDR_WIDTH-1:0] 	rf_addrw;  
-   output 					except_illegal;
    output [`OR1200_ALUOP_WIDTH-1:0] 		alu_op;
    output [`OR1200_ALUOP2_WIDTH-1:0] 		alu_op2;
    output 					spr_read;
    output 					spr_write;
-   output [`OR1200_MACOP_WIDTH-1:0] 		mac_op;
    output [`OR1200_RFWBOP_WIDTH-1:0] 		rfwb_op;
    output [`OR1200_LSUOP_WIDTH-1:0] 		id_lsu_op;
    output [`OR1200_COMPOP_WIDTH-1:0] 		comp_op;
@@ -108,7 +106,6 @@ module or1200_ctrl_id_decode
    reg [`OR1200_MULTICYCLE_WIDTH-1:0] 		multicycle;
    reg [`OR1200_WAIT_ON_WIDTH-1:0] 		wait_on;   
    reg [`OR1200_REGFILE_ADDR_WIDTH-1:0] 	rf_addrw;
-   reg 						except_illegal;
    reg [`OR1200_ALUOP_WIDTH-1:0] 		alu_op;
    reg [`OR1200_ALUOP2_WIDTH-1:0] 		alu_op2;
    reg 						spr_read;
@@ -118,7 +115,6 @@ module or1200_ctrl_id_decode
    reg [`OR1200_LSUOP_WIDTH-1:0] 		id_lsu_op;
    reg [`OR1200_COMPOP_WIDTH-1:0] 		comp_op;
    reg 						sig_trap;
-   reg [`OR1200_MACOP_WIDTH-1:0] 		ex_mac_op;
    reg 						ex_macrc_op;
    reg [`OR1200_SEL_WIDTH:0] 			sel_a;
    reg [`OR1200_SEL_WIDTH:0] 			sel_b;
@@ -326,9 +322,7 @@ always @(posedge clk or `OR1200_RST_EVENT rst) begin
 end
 
    
-//
-// Decode of except_illegal
-//
+
 //id_illegal needed because of the possibility that the first instruction is legal and the second instruction is illegal
 always @(id_insn) begin
    case (id_insn[31:26])		// synopsys parallel_case
@@ -428,19 +422,7 @@ always @(id_insn) begin
 		id_illegal <=  1'b1;
 
    endcase
-end
-   
-
-always @(posedge clk or `OR1200_RST_EVENT rst) begin
-	if (rst == `OR1200_RST_VALUE)
-		except_illegal <=  1'b0;
-	else if (!ex_freeze & id_freeze | ex_flushpipe)
-		except_illegal <=  1'b0;
-	else if (!ex_freeze) begin
-	   except_illegal <= id_illegal;
-	end // if (!ex_freeze)
-end
-   
+end   
 
 //
 // Decode of alu_op
@@ -565,39 +547,7 @@ always @(posedge clk or `OR1200_RST_EVENT rst) begin
 	end
 end
 
-
-//
-// l.macrc in EX stage
-//
-`ifdef OR1200_MAC_IMPLEMENTED
-always @(posedge clk or `OR1200_RST_EVENT rst) begin
-	if (rst == `OR1200_RST_VALUE)
-		ex_macrc_op <=  1'b0;
-	else if (!ex_freeze & id_freeze | ex_flushpipe)
-		ex_macrc_op <=  1'b0;
-	else if (!ex_freeze)
-		ex_macrc_op <=  id_macrc_op;
-end
-`else
-assign ex_macrc_op = 1'b0;
-`endif
-   
-//
-// Decode of mac_op
-//
-`ifdef OR1200_MAC_IMPLEMENTED
-
-always @(posedge clk or `OR1200_RST_EVENT rst) begin
-	if (rst == `OR1200_RST_VALUE)
-		ex_mac_op <=  `OR1200_MACOP_NOP;
-	else if (!ex_freeze & id_freeze | ex_flushpipe)
-		ex_mac_op <=  `OR1200_MACOP_NOP;
-	else if (!ex_freeze)
-		ex_mac_op <=  id_mac_op;
-end
-
-assign mac_op = abort_mvspr ? `OR1200_MACOP_NOP : ex_mac_op;
-
+`ifdef OR1200_MAC_IMPLEMENTED   
 always @(id_insn) begin
 	case (id_insn[31:26])		// synopsys parallel_case
 
@@ -618,7 +568,6 @@ end
 
 `else
 assign id_mac_op = `OR1200_MACOP_NOP;
-assign mac_op = `OR1200_MACOP_NOP;
 `endif
 
 //

@@ -1124,7 +1124,8 @@ or1200_except or1200_except(
 	.ex_two_insns_next(ex_two_insns_next),
 	.half_insn_done(half_insn_done),
 	.same_stage_dslot(same_stage_dslot),
-	.ex_branch_first(ex_branch_first)
+	.ex_branch_first(ex_branch_first),
+	.dependency_hazard_stall(dependency_hazard_stall)
 );
 
 //

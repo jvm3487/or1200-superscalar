@@ -79,7 +79,7 @@ module or1200_except
    spr_dat_npc, datain, du_dsr, epcr_we, eear_we, esr_we, pc_we, epcr, eear, 
    du_dmr1, du_hwbkpt, du_hwbkpt_ls_r, esr, sr_we, to_sr, sr, lsu_addr, 
    abort_ex, icpu_ack_i, icpu_err_i, dcpu_ack_i, dcpu_err_i, sig_fp, fpcsr_fpee,
-   dsx, ex_two_insns, ex_two_insns_next, half_insn_done, same_stage_dslot, ex_branch_first
+   dsx, ex_two_insns, ex_two_insns_next, half_insn_done, same_stage_dslot, ex_branch_first, dependency_hazard_stall
    
 );
 
@@ -123,6 +123,7 @@ input				epcr_we;
 input				eear_we;
 input				esr_we;
 input				pc_we;
+input    			dependency_hazard_stall;
 output	[31:0]			epcr;
 output	[31:0]			eear;
 output	[`OR1200_SR_WIDTH-1:0]	esr;
@@ -365,7 +366,7 @@ always @(posedge clk or `OR1200_RST_EVENT rst) begin
 	else if (!id_freeze) begin
 		id_pc <=  if_pc;
         id_pc_val <=  1'b1 ;
-		id_exceptflags <=  { sig_ibuserr, sig_itlbmiss, sig_immufault };
+		id_exceptflags <=  dependency_hazard_stall ? 3'b0 : { sig_ibuserr, sig_itlbmiss, sig_immufault };
 	end
 end
 
@@ -446,7 +447,7 @@ always @(posedge clk or `OR1200_RST_EVENT rst) begin
 	     ex_pc <= (ex_pc + 32'h4);
 	   ex_branch_first_next <= ex_branch_first;
                 ex_pc_val <=  id_pc_val ;
-		ex_exceptflags <=  id_exceptflags;
+		ex_exceptflags <=  same_stage_dslot ? 3'b0 : id_exceptflags;
 		delayed1_ex_dslot <=  ex_dslot;
 		delayed2_ex_dslot <=  delayed1_ex_dslot;
 	end

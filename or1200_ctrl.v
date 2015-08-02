@@ -172,7 +172,8 @@ output  				ex_branch_first;
    wire [`OR1200_BRANCHOP_WIDTH-1:0] 		ex_branch_opa;
    wire [31:0] 				id_pc2;   
    reg     				ex_two_insns_next;      
-   reg [`OR1200_MACOP_WIDTH-1:0] 	mac_op;
+   wire [`OR1200_MACOP_WIDTH-1:0] 	mac_op;
+   reg [`OR1200_MACOP_WIDTH-1:0] 	ex_mac_op;
    reg [63:0] 				id_insn /* verilator public */;
    reg [63:0] 				ex_insn /* verilator public */;
 
@@ -202,6 +203,7 @@ output  				ex_branch_first;
    output [1:0] 			data_dependent;
    reg [1:0] 				data_dependent;
    reg 					multiply_stall;
+   reg 					multiply_stall2;
    reg 					load_or_store_stall;
    reg 					fpu_hazard_stall;
    reg 					branch_hazard_stall;
@@ -212,7 +214,7 @@ output  				ex_branch_first;
    wire [31:0] 					id_insn_for_testa;
    wire 					sig_syscalla;
    wire 					id_macrc_opa;
-   wire						ex_macrc_opa;		
+   wire [`OR1200_MACOP_WIDTH-1:0] 		id_mac_opa;		
    wire 					dc_no_writethrougha;
    wire 					id_voida;
    wire [`OR1200_FPUOP_WIDTH-1:0] 		fpu_opa;
@@ -222,8 +224,7 @@ output  				ex_branch_first;
    wire [`OR1200_ALUOP_WIDTH-1:0] 		alu_opa;
    wire [`OR1200_ALUOP2_WIDTH-1:0] 		alu_op2a;
    wire 					spr_reada;
-   wire						spr_writea;
-   wire [`OR1200_MACOP_WIDTH-1:0] 		mac_opa;		
+   wire						spr_writea;		
    wire [`OR1200_RFWBOP_WIDTH-1:0] 		rfwb_opa;
    wire [`OR1200_LSUOP_WIDTH-1:0] 		id_lsu_opa;
    wire [`OR1200_COMPOP_WIDTH-1:0] 		comp_opa;
@@ -231,8 +232,8 @@ output  				ex_branch_first;
    wire [31:0] 					id_simmc;
    wire [31:0] 					id_insn_for_testc;
    wire 					sig_syscallc;
-   wire 					id_macrc_opc;
-   wire						ex_macrc_opc;		
+   wire 					id_macrc_opc;	
+   wire [`OR1200_MACOP_WIDTH-1:0] 		id_mac_opc;	
    wire 					dc_no_writethroughc;
    wire 					id_voidc;
    wire [`OR1200_FPUOP_WIDTH-1:0] 		fpu_opc;
@@ -243,8 +244,7 @@ output  				ex_branch_first;
    wire [`OR1200_ALUOP2_WIDTH-1:0] 		alu_op2c;
    reg [`OR1200_ALUOP_WIDTH-1:0] 		alu_opc_out;
    wire 					spr_readc;
-   wire						spr_writec;
-   wire [`OR1200_MACOP_WIDTH-1:0] 		mac_opc;		
+   wire						spr_writec;		
    wire [`OR1200_RFWBOP_WIDTH-1:0] 		rfwb_opc;
    wire [`OR1200_LSUOP_WIDTH-1:0] 		id_lsu_opc;
    wire [`OR1200_COMPOP_WIDTH-1:0] 		comp_opc;
@@ -252,7 +252,9 @@ output  				ex_branch_first;
    reg [31:0] 					id_simm;
    reg 						sig_syscall;
    reg 						id_macrc_op;
+   reg 	[`OR1200_MACOP_WIDTH-1:0]		id_mac_op;	
    reg 						id_macrc_op_next;
+   reg [`OR1200_MACOP_WIDTH-1:0]		id_mac_op_next;
    reg 						dc_no_writethrough;
    wire						id_void;
    reg 						id_void_next;		
@@ -269,21 +271,18 @@ output  				ex_branch_first;
    reg [`OR1200_ALUOP2_WIDTH-1:0] 		alu_op2;
    reg 						spr_read;
    reg 						spr_write;
-   reg 						ex_macrc_op;
-   reg 						ex_macrc_op_next;	
+   reg 						ex_macrc_op;	
    reg [`OR1200_RFWBOP_WIDTH-1:0] 		rfwb_op;
    reg [`OR1200_RFWBOP_WIDTH-1:0] 		rfwb_op2;
    reg [`OR1200_LSUOP_WIDTH-1:0] 		id_lsu_op;
    reg [`OR1200_LSUOP_WIDTH-1:0] 		id_lsu_op_next;
    reg [`OR1200_COMPOP_WIDTH-1:0] 		comp_op;
-   reg 						sig_trap;
-   reg [`OR1200_MACOP_WIDTH-1:0] 		mac_op_next;		
+   reg 						sig_trap;		
    reg 						sel_imm_next;
    reg 	[`OR1200_BRANCHOP_WIDTH-1:0]		id_branch_op_next;
    reg 						sig_syscall_next;
    reg 						dc_no_writethrough_next;
    reg [`OR1200_REGFILE_ADDR_WIDTH-1:0] 	rf_addrw_next;
-   reg 						except_illegal_next;
    reg [`OR1200_ALUOP_WIDTH-1:0] 		alu_op_next;
    reg [`OR1200_ALUOP2_WIDTH-1:0] 		alu_op2_next;
    reg 						spr_read_next;
@@ -296,10 +295,10 @@ output  				ex_branch_first;
    reg [31:0] 					ex_insn_intermediate;
    wire 					same_stage_dslot;
    wire 					previous_stage_dslot;
-   wire 					except_illegala_inter;
-   wire 					except_illegalc_inter;
    reg 						except_illegala;
-   reg 						except_illegalc;
+   wire						except_illegalc;
+   reg 						id_illegal;
+   reg 						id_illegal_next;
    wire 					id_illegala;
    wire 					id_illegalc;
    
@@ -429,7 +428,7 @@ always @(posedge clk or `OR1200_RST_EVENT rst) begin
 end
 
 //Any type of hazard or dependency stall will stall the pipeline   
-assign dependency_hazard_stall = ((|data_dependent) | multiply_stall | load_or_store_stall | fpu_hazard_stall | /*branch_hazard_stall |*/ wait_hazard_stall | multicycle_hazard_stall | system_stall);
+   assign dependency_hazard_stall = ((|data_dependent) | multiply_stall | multiply_stall2 | load_or_store_stall | fpu_hazard_stall | /*branch_hazard_stall |*/ wait_hazard_stall | multicycle_hazard_stall | system_stall);
    
 //data dependency check of two insns in the same stage of pipeline   
 always @(*) begin
@@ -475,7 +474,7 @@ always @(id_macrc_opa or id_macrc_opc or id_insn or half_insn_done or id_macrc_o
 	multiply_stall <= 1'b1;
       else
 	multiply_stall <= 1'b0;
-      id_macrc_op <= 1'b1;
+      id_macrc_op <= id_macrc_opa;
    end
    else begin
       multiply_stall <= 1'b0;
@@ -489,6 +488,29 @@ always @(id_macrc_opa or id_macrc_opc or id_insn or half_insn_done or id_macrc_o
    end 
 end 
 
+//second structural hazard check for MAC unit
+always @(id_mac_opa or id_mac_opc or id_insn or half_insn_done or id_mac_op_next or same_stage_dslot or no_more_dslot) begin //dslot logic needed to keep from stalling for no reason
+   if (((|id_mac_opa & !same_stage_dslot)| (|id_mac_opc & !no_more_dslot))  & (id_insn[63:58] != `OR1200_OR32_NOP)) begin
+      if (|id_mac_opc) begin
+	multiply_stall2 <= 1'b1;
+      end
+      else
+	multiply_stall2 <= 1'b0;
+      id_mac_op <= id_mac_opa;
+   end
+   else begin
+      multiply_stall2 <= 1'b0;
+      if (!half_insn_done)
+	if (!same_stage_dslot)
+	  id_mac_op <= id_mac_opa;
+	else
+	  id_mac_op <= `OR1200_MACOP_NOP;
+      else
+	id_mac_op <= id_mac_op_next;
+   end 
+end 
+
+   
 //structural hazard check for LSU
 always @(id_lsu_opa or id_lsu_opc or id_insn or half_insn_done or id_lsu_op_next or same_stage_dslot or no_more_dslot) begin //dslot logic needed to keep from stalling for no reason
    if (((id_lsu_opa != `OR1200_LSUOP_NOP)  & (id_insn[63:58] != `OR1200_OR32_NOP) & !same_stage_dslot) | ((id_lsu_opc != `OR1200_LSUOP_NOP) & !no_more_dslot)) begin
@@ -590,12 +612,20 @@ always @(multicyclea or multicyclec or id_insn or half_insn_done or multicycle_n
 end
 
 //stall due to system call or trap  
-always @(id_insn or du_hwbkpt or same_stage_dslot or no_more_dslot or id_illegala or id_illegalc) begin
+always @(id_insn or du_hwbkpt or same_stage_dslot or no_more_dslot or id_illegala or id_illegalc or half_insn_done) begin
    if (((id_insn[31:26] == `OR1200_OR32_XSYNC)  & ((id_insn[63:58] != `OR1200_OR32_NOP) | !id_insn[48]) & !same_stage_dslot) | ((id_insn[63:58] == `OR1200_OR32_XSYNC) & !no_more_dslot) | du_hwbkpt | id_illegala | id_illegalc) begin //dslot logic needed to keep from stalling for no reason
       system_stall <= 1'b1;
+      id_illegal <= id_illegala;
    end
    else begin
       system_stall <= 1'b0;
+      if (!half_insn_done)
+	if (!same_stage_dslot)
+	  id_illegal <= id_illegalc;
+	else
+	  id_illegal <= 1'b0;
+      else
+	id_illegal <= id_illegal_next;
    end 
 end 
    
@@ -654,6 +684,58 @@ always @(posedge clk or `OR1200_RST_EVENT rst) begin
 `endif
 	end
 end
+
+
+//
+// l.macrc in EX stage
+//
+`ifdef OR1200_MAC_IMPLEMENTED
+always @(posedge clk or `OR1200_RST_EVENT rst) begin
+	if (rst == `OR1200_RST_VALUE)
+		ex_macrc_op <=  1'b0;
+	else if (!ex_freeze & id_freeze | ex_flushpipe)
+		ex_macrc_op <=  1'b0;
+	else if (!ex_freeze)
+		ex_macrc_op <=  id_macrc_op;
+end
+`else
+assign ex_macrc_op = 1'b0;
+`endif
+   
+//
+// Decode of mac_op
+//
+`ifdef OR1200_MAC_IMPLEMENTED
+
+always @(posedge clk or `OR1200_RST_EVENT rst) begin
+	if (rst == `OR1200_RST_VALUE)
+		ex_mac_op <=  `OR1200_MACOP_NOP;
+	else if (!ex_freeze & id_freeze | ex_flushpipe)
+		ex_mac_op <=  `OR1200_MACOP_NOP;
+	else if (!ex_freeze)
+		ex_mac_op <=  id_mac_op;
+end
+
+assign mac_op = abort_mvspr ? `OR1200_MACOP_NOP : ex_mac_op;
+   
+`else // !`ifdef OR1200_MAC_IMPLEMENTED
+assign mac_op = `OR1200_MACOP_NOP;
+`endif
+
+//
+// Decode of except_illegal
+//
+always @(posedge clk or `OR1200_RST_EVENT rst) begin
+	if (rst == `OR1200_RST_VALUE)
+		except_illegala <=  1'b0;
+	else if (!ex_freeze & id_freeze | ex_flushpipe)
+		except_illegala <=  1'b0;
+	else if (!ex_freeze) begin
+	   except_illegala <= id_illegal;
+	end // if (!ex_freeze)
+end
+
+assign except_illegalc = 1'b0;
    
 //
 // Instruction latch in wb_insn - This is only used by the simulator (or1200_monitor) and possibly an external debugger
@@ -692,7 +774,8 @@ always @(posedge clk or `OR1200_RST_EVENT rst) begin
      id_lsu_op_next <= id_lsu_opc;
      id_branch_op_next <= id_branch_opc;
      id_macrc_op_next <= id_macrc_opc;	
-     ex_macrc_op_next <= ex_macrc_opc;
+     id_mac_op_next <= id_mac_opc;
+     id_illegal_next <= id_illegalc;
      sig_syscall_next <= sig_syscallc;
      dc_no_writethrough_next <= dc_no_writethroughc;
      rf_addrw_next <= rf_addrwc;
@@ -700,14 +783,12 @@ always @(posedge clk or `OR1200_RST_EVENT rst) begin
      alu_op2_next <= alu_op2c;
      spr_read_next <= spr_readc;
      spr_write_next <= spr_writec;
-     mac_op_next <= mac_opc;
      rfwb_op_next <= rfwb_opc;
      comp_op_next <= comp_opc;
      sig_trap_next <= sig_trapc;
      ex_branch_op_next <= ex_branch_opc;
      ex_simm_next <= ex_simmc;
      ex_branch_addrtarget_next <= ex_branch_addrtargetc;
-     except_illegal_next <= except_illegalc_inter;
      
   end
 end // always @ (posedge clk or `OR1200_RST_EVENT rst)
@@ -722,8 +803,6 @@ always @(*) begin
       rf_addrw <= rf_addrw_next;
       alu_op2 <= alu_op2_next;
       comp_op <= comp_op_next;
-      ex_macrc_op <= ex_macrc_op_next;
-      mac_op <= mac_op_next;
       ex_branch_op <= ex_branch_op_next;
       ex_branch_first <= 1'b1; //branch is now first instruction in pipeline
       dc_no_writethrough <= dc_no_writethrough_next;      
@@ -733,7 +812,6 @@ always @(*) begin
       sig_trap <= sig_trap_next;
       alu_op <= alu_op_next;      
       rfwb_op <= rfwb_op_next;
-      except_illegala <= except_illegal_next;
       
    end
 
@@ -747,8 +825,6 @@ always @(*) begin
 
       //This is needed in case a NOP is inserted partway through the pipeline
       if ((ex_insn[31:26] != `OR1200_OR32_NOP) | !ex_insn[16]) begin
-	 ex_macrc_op <= ex_macrc_opa;
-	 mac_op <= mac_opa;
 	 //two branches back to back is not possible
 	 if (ex_branch_opa != `OR1200_BRANCHOP_NOP) begin
 	    ex_branch_op <= ex_branch_opa;
@@ -771,12 +847,9 @@ always @(*) begin
 	 sig_trap <= sig_trapa;
 	 alu_op <= alu_opa;
 	 rfwb_op <= rfwb_opa;
-	 except_illegala <= except_illegala_inter;
 			   
       end 
       else begin
-	 ex_macrc_op <= 1'b0;
-	 mac_op <= `OR1200_MACOP_NOP;
 	 ex_branch_op <= `OR1200_BRANCHOP_NOP;
 	 ex_branch_first <= 1'b0;
 	 dc_no_writethrough <= 1'b0;
@@ -786,7 +859,6 @@ always @(*) begin
 	 sig_trap <= 1'b0;
 	 alu_op <= `OR1200_ALUOP_NOP;
 	 rfwb_op <= `OR1200_RFWBOP_NOP;
-	 except_illegala <= 1'b0;
 	 
       end
    end
@@ -796,14 +868,12 @@ always @(*) begin
       alu_opc_out <= alu_opc;
       rfwb_op2 <= rfwb_opc;
       ex_two_insns <= 1'b1;
-      except_illegalc <= except_illegalc_inter;
       
    end 
    else begin
       alu_opc_out <= `OR1200_ALUOP_NOP;
       rfwb_op2 <= `OR1200_RFWBOP_NOP;
       ex_two_insns <= 1'b0;
-      except_illegalc <= 1'b0;
       
    end
 end
@@ -836,8 +906,8 @@ or1200_ctrl_id_decode or1200_ctrl_id_decode1(
 	.wbforw_valid2(wbforw_valid2),
         .id_branch_op(id_branch_opa),
 	.id_simm(id_simma),
+	.id_mac_op(id_mac_opa),				     
 	.id_macrc_op(id_macrc_opa),
-        .ex_macrc_op(ex_macrc_opa), //sync
 	.sig_syscall(sig_syscalla), //sync
         .dc_no_writethrough(dc_no_writethrougha), //sync
 	.id_void(id_voida),
@@ -845,12 +915,10 @@ or1200_ctrl_id_decode or1200_ctrl_id_decode1(
 	.multicycle(multicyclea),
 	.wait_on(wait_ona),
 	.rf_addrw(rf_addrwa),  //synchronous
-	.except_illegal(except_illegala_inter), //synchronous
 	.alu_op(alu_opa), //sync
 	.alu_op2(alu_op2a), //sync
 	.spr_read(spr_reada), //sync
 	.spr_write(spr_writea), //sync
-	.mac_op(mac_opa), //sync
 	.rfwb_op(rfwb_opa), //sync
 	.id_lsu_op(id_lsu_opa),
 	.comp_op(comp_opa), //sync
@@ -887,8 +955,8 @@ or1200_ctrl_id_decode or1200_ctrl_id_decode2(
 	.wbforw_valid2(wbforw_valid2),
 	.id_branch_op(id_branch_opc),
 	.id_simm(id_simmc),
+	.id_mac_op(id_mac_opc),				     
 	.id_macrc_op(id_macrc_opc),
-	.ex_macrc_op(ex_macrc_opc), //sync
         .sig_syscall(sig_syscallc), //sync
         .dc_no_writethrough(dc_no_writethroughc), //sync
 	.id_void(id_voidc),
@@ -896,12 +964,10 @@ or1200_ctrl_id_decode or1200_ctrl_id_decode2(
 	.multicycle(multicyclec),
 	.wait_on(wait_onc),
 	.rf_addrw(rf_addrwc),  //synchronous
-	.except_illegal(except_illegalc_inter), //synchronous
 	.alu_op(alu_opc), //sync
 	.alu_op2(alu_op2c), //sync
 	.spr_read(spr_readc), //sync
 	.spr_write(spr_writec), //sync
-	.mac_op(mac_opc), //sync
 	.rfwb_op(rfwb_opc), //sync
 	.id_lsu_op(id_lsu_opc),
 	.comp_op(comp_opc), //sync
