@@ -468,24 +468,22 @@ always @(*) begin
 end
 
 //structural hazard check for MAC unit
-always @(id_macrc_opa or id_macrc_opc or id_insn or half_insn_done or id_macrc_op_next or same_stage_dslot or no_more_dslot) begin //dslot logic needed to keep from stalling for no reason
-   if (((id_macrc_opa & !same_stage_dslot)| (id_macrc_opc & !no_more_dslot))  & (id_insn[63:58] != `OR1200_OR32_NOP)) begin
-      if (id_macrc_opc)
+always @(*) begin
+   if (half_insn_done) begin
+      multiply_stall <= 1'b0;
+      id_macrc_op <= id_macrc_op_next;
+   end   
+   else if (same_stage_dslot) begin
+      multiply_stall <= 1'b0;
+      id_macrc_op <= 1'b0;
+   end
+   else begin
+      id_macrc_op <= id_macrc_opa;
+      if (id_macrc_opc & !no_more_dslot)
 	multiply_stall <= 1'b1;
       else
 	multiply_stall <= 1'b0;
-      id_macrc_op <= id_macrc_opa;
    end
-   else begin
-      multiply_stall <= 1'b0;
-      if (!half_insn_done)
-	if (!same_stage_dslot)
-	  id_macrc_op <= id_macrc_opa;
-	else
-	  id_macrc_op <= 1'b0;
-      else
-	id_macrc_op <= id_macrc_op_next;
-   end 
 end 
 
 //second structural hazard check for MAC unit
@@ -512,23 +510,21 @@ end
 
    
 //structural hazard check for LSU
-always @(id_lsu_opa or id_lsu_opc or id_insn or half_insn_done or id_lsu_op_next or same_stage_dslot or no_more_dslot) begin //dslot logic needed to keep from stalling for no reason
-   if (((id_lsu_opa != `OR1200_LSUOP_NOP)  & (id_insn[63:58] != `OR1200_OR32_NOP) & !same_stage_dslot) | ((id_lsu_opc != `OR1200_LSUOP_NOP) & !no_more_dslot)) begin
-      if (id_lsu_opc != `OR1200_LSUOP_NOP) //added to only stall if lsu operation is in the second half of pipeline
-	load_or_store_stall <= 1'b1;
-      else 
-	load_or_store_stall <= 1'b0;
-      id_lsu_op <= id_lsu_opa;
+always @(*) begin
+   if (half_insn_done) begin
+      load_or_store_stall <= 1'b0;
+      id_lsu_op <= id_lsu_op_next;
+   end   
+   else if (same_stage_dslot) begin
+      load_or_store_stall <= 1'b0;
+      id_lsu_op <= `OR1200_LSUOP_NOP;
    end
    else begin
-      load_or_store_stall <= 1'b0;
-      if (!half_insn_done)
-	if (!same_stage_dslot)
-	  id_lsu_op <= id_lsu_opa;
-	else
-	  id_lsu_op <= `OR1200_LSUOP_NOP;
+      id_lsu_op <= id_lsu_opa;
+      if ((id_lsu_opc != `OR1200_LSUOP_NOP) & !no_more_dslot)
+	load_or_store_stall <= 1'b1;
       else
-	id_lsu_op <= id_lsu_op_next;
+	load_or_store_stall <= 1'b0;
    end 
 end
 
