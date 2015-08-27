@@ -305,7 +305,7 @@ assign force_dslot_fetch = 1'b0;
 //one more instruction after branch must be executed - determines if it is the instruction in the same stage or the previous stage
 //the pipeline does not naturally insert nops so this is only possibility
 assign same_stage_dslot = (|ex_branch_op & ex_branch_taken & (((ex_insn[63:58] != `OR1200_OR32_NOP) | !ex_insn[48]) | (((ex_insn_intermediate[31:26] != `OR1200_OR32_NOP) | !ex_insn_intermediate[16]) & half_insn_done))) & ex_branch_first; //last part added because no such thing as same_stage_dslot when branch is in second part of instruction
-   assign previous_stage_dslot = (|ex_branch_op & !id_void & ex_branch_taken);
+assign previous_stage_dslot = (|ex_branch_op & !id_void & ex_branch_taken);
  /*| (|ex_branch_op & half_insn_done_next & ex_branch_taken); //This means that a branch in the second half of an insn is being executed and dslot instruction should be in the if stage*/ 
 		     
 assign no_more_dslot = same_stage_dslot | previous_stage_dslot |
@@ -399,20 +399,19 @@ always @(posedge clk or `OR1200_RST_EVENT rst) begin
 	end
 	else if (!id_freeze) begin
 	   id_insn[31:0] <= if_insn[31:0];
-	   //This was added because after the cycle following branches was removed theres a chance a nop is fetched between a taken branch and the target of the branch
+	   //This was added because theres a chance a nop is fetched between a taken branch and the target of the branch
 	   if (ex_branch_taken & !no_more_dslot)
 	     id_insn[63:32] <= {`OR1200_OR32_NOP, 26'h141_0000};
 	   else
 	     id_insn[63:32] <= if_insn[63:32];
-	//This was added due to the possibility that a id_freeze goes high in the same cycle that no_more_dslot is asserted so the pipeline must be purged appropriately
 	end
-	else if (id_freeze & same_stage_dslot) begin
+        // purge the pipeline appropriately if id_freeze goes high on the same cycle as no_more_dslot
+	else if (same_stage_dslot) begin
 	   id_insn <= {2{`OR1200_OR32_NOP, 26'h141_0000}};
 	end
-	else if (id_freeze & previous_stage_dslot) begin
+	else if (previous_stage_dslot) begin
 	   id_insn[63:32] <= {`OR1200_OR32_NOP, 26'h141_0000};
 	   id_insn[31:0] <= id_insn[31:0];
-
 `ifdef OR1200_VERBOSE
 // synopsys translate_off
 		$display("%t: id_insn <= %h", $time, if_insn);
