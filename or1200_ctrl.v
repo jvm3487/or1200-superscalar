@@ -202,11 +202,8 @@ output  				ex_branch_first;
    reg [63:0] 				if_insn_intermediate;
    output [1:0] 			data_dependent;
    reg [1:0] 				data_dependent;
-   reg 					multiply_stall;
-   reg 					multiply_stall2;
-   reg 					load_or_store_stall;
-   reg 					fpu_hazard_stall;
    reg 					branch_hazard_stall;
+   reg 					hazard_stall;
    reg 					wait_hazard_stall;
    reg 					multicycle_hazard_stall;
    reg 					system_stall;
@@ -428,7 +425,7 @@ always @(posedge clk or `OR1200_RST_EVENT rst) begin
 end
 
 //Any type of hazard or dependency stall will stall the pipeline   
-   assign dependency_hazard_stall = ((|data_dependent) | multiply_stall | multiply_stall2 | load_or_store_stall | fpu_hazard_stall | /*branch_hazard_stall |*/ wait_hazard_stall | multicycle_hazard_stall | system_stall);
+   assign dependency_hazard_stall = ((|data_dependent) | hazard_stall | /*branch_hazard_stall |*/ wait_hazard_stall | multicycle_hazard_stall | system_stall);
    
 //data dependency check of two insns in the same stage of pipeline   
 always @(*) begin
@@ -466,88 +463,34 @@ always @(*) begin
       data_dependent <= 2'd0;
    end
 end
-
-//structural hazard check for MAC unit
-always @(*) begin
-   if (half_insn_done) begin
-      multiply_stall <= 1'b0;
-      id_macrc_op <= id_macrc_op_next;
-   end   
-   else if (same_stage_dslot) begin
-      multiply_stall <= 1'b0;
-      id_macrc_op <= 1'b0;
-   end
-   else begin
-      id_macrc_op <= id_macrc_opa;
-      if (id_macrc_opc & !no_more_dslot)
-	multiply_stall <= 1'b1;
-      else
-	multiply_stall <= 1'b0;
-   end
-end 
-
-//second structural hazard check for MAC unit
-always @(id_mac_opa or id_mac_opc or id_insn or half_insn_done or id_mac_op_next or same_stage_dslot or no_more_dslot) begin //dslot logic needed to keep from stalling for no reason
-   if (((|id_mac_opa & !same_stage_dslot)| (|id_mac_opc & !no_more_dslot))  & (id_insn[63:58] != `OR1200_OR32_NOP)) begin
-      if (|id_mac_opc) begin
-	multiply_stall2 <= 1'b1;
-      end
-      else
-	multiply_stall2 <= 1'b0;
-      id_mac_op <= id_mac_opa;
-   end
-   else begin
-      multiply_stall2 <= 1'b0;
-      if (!half_insn_done)
-	if (!same_stage_dslot)
-	  id_mac_op <= id_mac_opa;
-	else
-	  id_mac_op <= `OR1200_MACOP_NOP;
-      else
-	id_mac_op <= id_mac_op_next;
-   end 
-end 
-
    
-//structural hazard check for LSU
+//structural hazard check for LSU, multiplication, and fpu
 always @(*) begin
    if (half_insn_done) begin
-      load_or_store_stall <= 1'b0;
+      hazard_stall <= 1'b0;
       id_lsu_op <= id_lsu_op_next;
+      id_mac_op <= id_mac_op_next;
+      id_macrc_op <= id_macrc_op_next;
+      fpu_op <= fpu_op_next;
    end   
    else if (same_stage_dslot) begin
-      load_or_store_stall <= 1'b0;
+      hazard_stall <= 1'b0;
       id_lsu_op <= `OR1200_LSUOP_NOP;
+      id_mac_op <= `OR1200_MACOP_NOP;
+      id_macrc_op <= 1'b0;
+      fpu_op <= {`OR1200_FPUOP_WIDTH{1'b0}};
    end
    else begin
       id_lsu_op <= id_lsu_opa;
-      if ((id_lsu_opc != `OR1200_LSUOP_NOP) & !no_more_dslot)
-	load_or_store_stall <= 1'b1;
+      id_mac_op <= id_mac_opa;
+      id_macrc_op <= id_macrc_opa;
+      fpu_op <= fpu_opa;
+      if (!no_more_dslot & ((id_lsu_opc != `OR1200_LSUOP_NOP) | (id_mac_opc != `OR1200_MACOP_NOP) | id_macrc_opc | (fpu_opc != {`OR1200_FPUOP_WIDTH{1'b0}})))
+	hazard_stall <= 1'b1;
       else
-	load_or_store_stall <= 1'b0;
+	hazard_stall <= 1'b0;
    end 
 end
-
-//structural hazard check for FPU
-always @(fpu_opa or fpu_opc or id_insn or half_insn_done or fpu_op_next or same_stage_dslot or no_more_dslot) begin
-   if (((fpu_opa[`OR1200_FPUOP_WIDTH-1])  & (id_insn[63:58] != `OR1200_OR32_NOP) & !same_stage_dslot) | (fpu_opc[`OR1200_FPUOP_WIDTH-1] & !no_more_dslot)) begin //dslot logic needed to keep from stalling for no reason
-      if (fpu_opc[`OR1200_FPUOP_WIDTH-1])
-	fpu_hazard_stall <= 1'b1;
-      else
-	fpu_hazard_stall <= 1'b0;
-      fpu_op <= fpu_opa;
-   end
-   else begin
-      fpu_hazard_stall <= 1'b0;
-      if (!half_insn_done)
-	if (!same_stage_dslot)
-	  fpu_op <= fpu_opa;
-	else
-	  fpu_op <= {`OR1200_FPUOP_WIDTH{1'b0}};
-      else
-	fpu_op <= fpu_op_next;
-   end 
-end 
 
 //no longer structural hazard check for Branch Unit since branches can now be executed by either stage of pipeline
 //resolves id_branch_op for genpc.v
@@ -723,9 +666,9 @@ assign mac_op = `OR1200_MACOP_NOP;
 //
 always @(posedge clk or `OR1200_RST_EVENT rst) begin
 	if (rst == `OR1200_RST_VALUE)
-		except_illegala <=  1'b0;
+	  except_illegala <=  1'b0;
 	else if (!ex_freeze & id_freeze | ex_flushpipe)
-		except_illegala <=  1'b0;
+	  except_illegala <=  1'b0;
 	else if (!ex_freeze) begin
 	   except_illegala <= id_illegal;
 	end // if (!ex_freeze)
