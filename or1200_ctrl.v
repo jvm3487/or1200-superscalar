@@ -502,15 +502,16 @@ end
 //no longer structural hazard check for Branch Unit since branches can now be executed by either stage of pipeline
 //resolves id_branch_op for genpc.v
 //only need to stall if second insn is a branch because other ALU can handle normal dslot instruction
+//no such thing as two branches in a row
 always @(id_branch_opa or id_branch_opc or id_insn or same_stage_dslot or no_more_dslot or half_insn_done or id_branch_op_next) begin
    if (half_insn_done)
      id_branch_op <= id_branch_op_next;
-   else if ((id_branch_opa != `OR1200_BRANCHOP_NOP) & (id_insn[31:26] != `OR1200_OR32_NOP) & !same_stage_dslot) //dslot logic needed to keep from stalling for no reason
-     id_branch_op <= id_branch_opa;
-   else if ((id_branch_opc != `OR1200_BRANCHOP_NOP) & (id_insn[63:58] != `OR1200_OR32_NOP) & !no_more_dslot)
+   else if (same_stage_dslot) //dslot logic needed to keep from stalling for no reason
+     id_branch_op <= `OR1200_BRANCHOP_NOP;
+   else if ((id_branch_opc != `OR1200_BRANCHOP_NOP) & !no_more_dslot)
      id_branch_op <= id_branch_opc;
    else
-     id_branch_op <= `OR1200_BRANCHOP_NOP;
+     id_branch_op <= id_branch_opa;
 end 
    
 //
