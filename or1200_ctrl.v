@@ -523,44 +523,40 @@ always @(posedge clk or `OR1200_RST_EVENT rst) begin
 	   ex_insn_intermediate <= {`OR1200_OR32_NOP, 26'h141_0000};
 	   half_insn_done <= 1'b0;
 	end
-	else if (ex_flushpipe) begin
+	else if (ex_flushpipe | (!ex_freeze & abort_ex)) begin
 	   ex_insn <=  {2{`OR1200_OR32_NOP, 26'h141_0000}};
 	   ex_insn_intermediate <= {`OR1200_OR32_NOP, 26'h141_0000};
 	   half_insn_done <= 1'b0;
 	end
-	else if (!ex_freeze & abort_ex) begin
-	   ex_insn <=  {2{`OR1200_OR32_NOP, 26'h141_0000}};
-	end
 	else if (!ex_freeze) begin
-	   //half insn done used for data or structural hazard
-	   if (!half_insn_done) begin
-	      if (same_stage_dslot) begin
-		 ex_insn <= {2{`OR1200_OR32_NOP, 26'h141_0000}};
-	      end
-	      else if (previous_stage_dslot) begin
-		 ex_insn[31:0] <= id_insn[31:0];
-		 ex_insn[63:32] <= {`OR1200_OR32_NOP, 26'h141_0000};
-	      end
-	      else if (dependency_hazard_stall | (id_insn[31:26] == `OR1200_OR32_RFE)) begin
-		 if (id_insn[31:26] != `OR1200_OR32_RFE) //added so that the second instruction will not be executed in case of a RFE in the first slot
-		   half_insn_done <= 1'b1;
-		 else
-		   half_insn_done <= 1'b0;
-		 ex_insn[31:0] <= id_insn[31:0];
-		 ex_insn[63:32] <= {`OR1200_OR32_NOP, 26'h141_0000};
-		 ex_insn_intermediate <= id_insn[63:32];
-	      end
-	      else begin
-	         ex_insn <= id_insn;
-	      	 //other cases dont matter for ex_insn_intermediate since it will not be executed due to half insn done
-	      end
-	   end
-	   else begin
+	   if (half_insn_done) begin //half insn done used for data or structural hazard
 	      ex_insn[31:0] <= ex_insn_intermediate; //half_insn_done so executing stalled instruction
+	      ex_insn[63:32] <= {`OR1200_OR32_NOP, 26'h141_0000};
+	      ex_insn_intermediate <= {`OR1200_OR32_NOP, 26'h141_0000};
+	      half_insn_done <= 1'b0;
+	   end
+	   else if (same_stage_dslot) begin 
+	      ex_insn <=  {2{`OR1200_OR32_NOP, 26'h141_0000}};
+	      ex_insn_intermediate <= {`OR1200_OR32_NOP, 26'h141_0000};
+	      half_insn_done <= 1'b0;
+	   end
+	   else if (previous_stage_dslot  | (id_insn[31:26] == `OR1200_OR32_RFE)) begin //added so that the second insn will not be executed in case of a RFE in the first slot
+	      ex_insn[31:0] <= id_insn[31:0];
+	      ex_insn_intermediate <= {`OR1200_OR32_NOP, 26'h141_0000};
 	      ex_insn[63:32] <= {`OR1200_OR32_NOP, 26'h141_0000};
 	      half_insn_done <= 1'b0;
 	   end
-	   
+	   else if (dependency_hazard_stall) begin
+	      half_insn_done <= 1'b1;
+	      ex_insn[31:0] <= id_insn[31:0];
+	      ex_insn[63:32] <= {`OR1200_OR32_NOP, 26'h141_0000};
+	      ex_insn_intermediate <= id_insn[63:32];
+	   end
+	   else begin
+	      ex_insn <= id_insn;
+	      ex_insn_intermediate <= {`OR1200_OR32_NOP, 26'h141_0000};
+	      half_insn_done <= 1'b0;
+	   end 
 `ifdef OR1200_VERBOSE
 // synopsys translate_off
 	   $display("%t: ex_insn <= %h", $time, id_insn);
@@ -679,7 +675,6 @@ end // always @ (posedge clk or `OR1200_RST_EVENT rst)
    
 //This is used for testing due the current split up in the execute phase
 always @(*) begin
-   
    //Executing second half of a stalled instruction as long as that instruction isn't a NOP
    if (half_insn_done_next & ((ex_insn[31:26] != `OR1200_OR32_NOP) | !ex_insn[16])) begin
       ex_branch_addrtarget <= ex_branch_addrtarget_next;
@@ -696,19 +691,15 @@ always @(*) begin
       sig_trap <= sig_trap_next;
       alu_op <= alu_op_next;      
       rfwb_op <= rfwb_op_next;
-      
    end
-
-   //Normal instruction
-   else begin
+   else begin //Normal instruction
       //These signals do not effect wb so don't care in case of NOP
       ex_simm <= ex_simma;
       rf_addrw <= rf_addrwa;
       alu_op2 <= alu_op2a;
       comp_op <= comp_opa;
-
       //This is needed in case a NOP is inserted partway through the pipeline
-      if ((ex_insn[31:26] != `OR1200_OR32_NOP) | !ex_insn[16]) begin
+      if (ex_insn[31:26] != `OR1200_OR32_NOP) begin
 	 //two branches back to back is not possible
 	 if (ex_branch_opa != `OR1200_BRANCHOP_NOP) begin
 	    ex_branch_op <= ex_branch_opa;
@@ -730,8 +721,7 @@ always @(*) begin
 	 sig_syscall <= sig_syscalla;
 	 sig_trap <= sig_trapa;
 	 alu_op <= alu_opa;
-	 rfwb_op <= rfwb_opa;
-			   
+	 rfwb_op <= rfwb_opa; 
       end 
       else begin
 	 ex_branch_op <= `OR1200_BRANCHOP_NOP;
@@ -743,22 +733,21 @@ always @(*) begin
 	 sig_trap <= 1'b0;
 	 alu_op <= `OR1200_ALUOP_NOP;
 	 rfwb_op <= `OR1200_RFWBOP_NOP;
-	 
       end
    end
+end
 
+always@(*) begin   
    //This is needed for the case that a NOP is inserted partway through the pipeline due to a stall
    if ((ex_insn[63:58] != `OR1200_OR32_NOP) | !ex_insn[48]) begin   
       alu_opc_out <= alu_opc;
       rfwb_op2 <= rfwb_opc;
-      ex_two_insns <= 1'b1;
-      
+      ex_two_insns <= 1'b1;      
    end 
    else begin
       alu_opc_out <= `OR1200_ALUOP_NOP;
       rfwb_op2 <= `OR1200_RFWBOP_NOP;
       ex_two_insns <= 1'b0;
-      
    end
 end
 
