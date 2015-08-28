@@ -70,7 +70,7 @@ module or1200_ctrl
    multicycle, wait_on, wbforw_valid, wbforw_valid2, sig_syscall, sig_trap,
    force_dslot_fetch, no_more_dslot, id_void, ex_void, ex_spr_read, 
    ex_spr_write, 
-   id_macrc_op, ex_macrc_op, rfe, except_illegala, except_illegalc, dc_no_writethrough, data_dependent, half_insn_done, half_insn_done_next, same_stage_dslot, ex_branch_first
+   id_macrc_op, ex_macrc_op, rfe, except_illegala, except_illegalc, dc_no_writethrough, data_dependent, half_insn_done, half_insn_done_next, same_stage_dslot
    );
 
 //
@@ -156,9 +156,7 @@ output  				dc_no_writethrough;
 output   				half_insn_done;  
 output 	                 		half_insn_done_next;
 output [`OR1200_REGFILE_ADDR_WIDTH-1:0] 	rf_addrw2;	
-output 					same_stage_dslot;
-output  				ex_branch_first;
-   
+output 					same_stage_dslot;   
 				
 //
 // Internal wires and regs
@@ -252,7 +250,6 @@ output  				ex_branch_first;
    reg 						dc_no_writethrough;
    wire						id_void;
    reg 						id_void_next;		
-   wire 					ex_branch_first;
    reg [`OR1200_FPUOP_WIDTH-1:0] 		fpu_op;
    reg [`OR1200_FPUOP_WIDTH-1:0] 		fpu_op_next;
    reg [`OR1200_MULTICYCLE_WIDTH-1:0] 		multicycle;
@@ -302,10 +299,8 @@ output  				ex_branch_first;
 //
 assign force_dslot_fetch = 1'b0;
 //one more instruction after branch must be executed - determines if it is the instruction in the same stage or the previous stage
-//the pipeline does not naturally insert nops so this is only possibility
-assign same_stage_dslot = (|ex_branch_op & ex_branch_taken & (((ex_insn[63:58] != `OR1200_OR32_NOP) | !ex_insn[48]))); 
+assign same_stage_dslot = (|ex_branch_op & ex_branch_taken & ((ex_insn[63:58] != `OR1200_OR32_NOP) | !ex_insn[48])); 
 assign previous_stage_dslot = (|ex_branch_op & !id_void & ex_branch_taken);
- /*| (|ex_branch_op & half_insn_done_next & ex_branch_taken); //This means that a branch in the second half of an insn is being executed and dslot instruction should be in the if stage*/ 
 		     
 assign no_more_dslot = same_stage_dslot | previous_stage_dslot |
 		       (ex_branch_op == `OR1200_BRANCHOP_RFE);
@@ -527,13 +522,12 @@ always @(posedge clk or `OR1200_RST_EVENT rst) begin
 	      ex_insn[63:32] <= {`OR1200_OR32_NOP, 26'h141_0000};
 	      half_insn_done <= 1'b0;
 	   end
-	   else if (dependency_hazard_stall) begin
-	      half_insn_done <= 1'b1;
-	      ex_insn <= id_insn;
-	   end
 	   else begin
 	      ex_insn <= id_insn;
-	      half_insn_done <= 1'b0;
+	      if (dependency_hazard_stall)
+		half_insn_done <= 1'b1;
+	      else
+		half_insn_done <= 1'b0;
 	   end 
 `ifdef OR1200_VERBOSE
 // synopsys translate_off
@@ -608,7 +602,10 @@ always @(posedge clk or `OR1200_RST_EVENT rst) begin
 	// wb_insn changed by exception is not used elsewhere! 
 	else if (!wb_freeze) begin
 	   wb_insn <=  ex_insn[31:0];
-	   wb_insn_intermediate <= ex_insn[63:32];
+	   if (!half_insn_done)
+	     wb_insn_intermediate <= ex_insn[63:32];
+	   else
+	     wb_insn_intermediate <= {`OR1200_OR32_NOP, 26'h041_0000};
 	end
 end
    
@@ -698,9 +695,7 @@ always @(*) begin
 	 rfwb_op <= `OR1200_RFWBOP_NOP;
       end
    end
-end
-
-assign ex_branch_first = 1'b1;   
+end 
    
 always@(*) begin   
    //This is needed for the case that a NOP is inserted partway through the pipeline due to a stall

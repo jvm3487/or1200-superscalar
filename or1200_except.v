@@ -79,7 +79,7 @@ module or1200_except
    spr_dat_npc, datain, du_dsr, epcr_we, eear_we, esr_we, pc_we, epcr, eear, 
    du_dmr1, du_hwbkpt, du_hwbkpt_ls_r, esr, sr_we, to_sr, sr, lsu_addr, 
    abort_ex, icpu_ack_i, icpu_err_i, dcpu_ack_i, dcpu_err_i, sig_fp, fpcsr_fpee,
-   dsx, ex_two_insns, ex_two_insns_next, half_insn_done, same_stage_dslot, ex_branch_first, dependency_hazard_stall
+   dsx, ex_two_insns, ex_two_insns_next, half_insn_done, same_stage_dslot, dependency_hazard_stall
    
 );
 
@@ -154,9 +154,7 @@ output 			        dsx;
 input   			ex_two_insns;
 input 	         		ex_two_insns_next;
 input 	         		half_insn_done;
-input    			same_stage_dslot;
-input    			ex_branch_first;
- 			
+input    			same_stage_dslot;			
    
 //
 // Internal regs and wires
@@ -199,7 +197,6 @@ wire sr_ted = ex_freeze_prev ? sr_ted_prev : sr[`OR1200_SR_TED];
 wire dmr1_st = ex_freeze_prev ? dmr1_st_prev: du_dmr1[`OR1200_DU_DMR1_ST] ;
 wire dmr1_bt = ex_freeze_prev ? dmr1_bt_prev: du_dmr1[`OR1200_DU_DMR1_BT] ;
    reg [31:0] wb_pc2; //used by or1200-monitor 
-   reg 	      ex_branch_first_next;
    reg 	      same_stage_dslot_next; 	      
    
 //
@@ -408,7 +405,6 @@ always @(`OR1200_RST_EVENT rst or posedge clk)
 always @(posedge clk or `OR1200_RST_EVENT rst) begin
 	if (rst == `OR1200_RST_VALUE) begin
 	   ex_dslot <=  1'b0;
-	   ex_branch_first_next <= 1'b0;
 	   same_stage_dslot_next <= 1'b0;
 		ex_pc <=  32'd0;
                 ex_pc_val <=  1'b0 ;
@@ -418,7 +414,6 @@ always @(posedge clk or `OR1200_RST_EVENT rst) begin
 	end
 	else if (ex_flushpipe) begin
 	   ex_dslot <=  1'b0;
-	   ex_branch_first_next <= 1'b0;
 	   same_stage_dslot_next <= 1'b0;
                 ex_pc_val <=  1'b0 ;
 		ex_exceptflags <=  3'b000;
@@ -427,7 +422,6 @@ always @(posedge clk or `OR1200_RST_EVENT rst) begin
 	end
 	else if (!ex_freeze & id_freeze) begin
 	   ex_dslot <=  1'b0;
-	   ex_branch_first_next <= 1'b0;
 	   same_stage_dslot_next <= 1'b0;
 	   if (!half_insn_done)
 	     ex_pc <=  id_pc;
@@ -445,7 +439,6 @@ always @(posedge clk or `OR1200_RST_EVENT rst) begin
 	     ex_pc <=  id_pc;
 	   else
 	     ex_pc <= (ex_pc + 32'h4);
-	   ex_branch_first_next <= ex_branch_first;
                 ex_pc_val <=  id_pc_val ;
 		ex_exceptflags <=  same_stage_dslot ? 3'b0 : id_exceptflags;
 		delayed1_ex_dslot <=  ex_dslot;
@@ -510,8 +503,8 @@ assign except_flushpipe = |except_trig & ~|state;
 		       except_type <=  `OR1200_EXCEPT_ITLBMISS;
 		       eear <=  ex_dslot ? 
 			       ex_pc : ex_pc;
-		       epcr <= ex_dslot & ex_branch_first_next & ex_two_insns_next ? if_pc : ex_dslot & ex_branch_first_next ? 
-			       wb_pc : ex_dslot ? wb_pc2 : ex_pc;
+		       epcr <= ex_dslot & ex_two_insns_next ? if_pc : ex_dslot ? 
+			       wb_pc : ex_pc;
 		       dsx <= ex_dslot & (!same_stage_dslot_next | !ex_two_insns_next);
 		    end
 `endif
@@ -522,8 +515,8 @@ assign except_flushpipe = |except_trig & ~|state;
 			       ex_pc : delayed1_ex_dslot ? 
 			       id_pc : delayed2_ex_dslot ? 
 			       id_pc : id_pc;
-		       epcr <= ex_dslot & ex_branch_first_next & ex_two_insns_next ? if_pc : ex_dslot & ex_branch_first_next ? 
-			       wb_pc : ex_dslot ? wb_pc2 : half_insn_done ? (ex_pc + 32'h4) : delayed1_ex_dslot ? 
+		       epcr <= ex_dslot & ex_two_insns_next ? if_pc : ex_dslot ? 
+			       wb_pc : half_insn_done ? (ex_pc + 32'h4) : delayed1_ex_dslot ? 
 			       id_pc : delayed2_ex_dslot ? 
 			       id_pc : id_pc;
 		       dsx <= ex_dslot & (!same_stage_dslot_next | !ex_two_insns_next);
@@ -532,10 +525,10 @@ assign except_flushpipe = |except_trig & ~|state;
 `ifdef OR1200_EXCEPT_BUSERR
 		    14'b00_1???_????_????: begin	// Insn. Bus Error
 		       except_type <=  `OR1200_EXCEPT_BUSERR;
-		       eear <=  ex_dslot & ex_branch_first_next & ex_two_insns_next ? if_pc : ex_dslot & ex_branch_first_next ? 
-			       wb_pc : ex_dslot ? wb_pc2 : ex_pc;
-		       epcr <= ex_dslot & ex_branch_first_next & ex_two_insns_next ? if_pc : ex_dslot & ex_branch_first_next ? 
-			       wb_pc : (ex_dslot & ex_two_insns_next) ? wb_pc2 : ex_pc;
+		       eear <=  ex_dslot & ex_two_insns_next ? if_pc : ex_dslot ? 
+			       wb_pc : ex_pc;
+		       epcr <= ex_dslot & ex_two_insns_next ? if_pc : ex_dslot ? 
+			       wb_pc : ex_pc;
 		       dsx <= ex_dslot & (!same_stage_dslot_next | !ex_two_insns_next);
 		    end
 `endif
@@ -543,8 +536,8 @@ assign except_flushpipe = |except_trig & ~|state;
 		    14'b00_01??_????_????: begin
 		       except_type <=  `OR1200_EXCEPT_ILLEGAL;
 		       eear <=  sig_illegalc ? (ex_pc + 32'h4) : ex_pc;
-		       epcr <=  ex_dslot & ex_branch_first_next & ex_two_insns_next ? if_pc : ex_dslot & ex_branch_first_next ? 
-			       wb_pc : ex_dslot ? wb_pc2 : sig_illegalc ? (ex_pc + 32'h4) : ex_pc;
+		       epcr <=  ex_dslot & ex_two_insns_next ? if_pc : ex_dslot ? 
+			       wb_pc : sig_illegalc ? (ex_pc + 32'h4) : ex_pc;
 		       dsx <= ex_dslot & (!same_stage_dslot_next | !ex_two_insns_next);
 		    end
 `endif
@@ -552,8 +545,8 @@ assign except_flushpipe = |except_trig & ~|state;
 		    14'b00_001?_????_????: begin
 		       except_type <=  `OR1200_EXCEPT_ALIGN;
 		       eear <=  lsu_addr;
-		       epcr <=   ex_dslot & ex_branch_first_next & ex_two_insns_next ? if_pc : ex_dslot & ex_branch_first_next ? 
-				wb_pc : ex_dslot ? wb_pc2 : ex_pc;
+		       epcr <=   ex_dslot & ex_two_insns_next ? if_pc : ex_dslot ? 
+				wb_pc : ex_pc;
 		       dsx <= ex_dslot & (!same_stage_dslot_next | !ex_two_insns_next);
 		    end
 `endif
@@ -561,8 +554,8 @@ assign except_flushpipe = |except_trig & ~|state;
 		    14'b00_0001_????_????: begin
 		       except_type <=  `OR1200_EXCEPT_DTLBMISS;
 		       eear <=  lsu_addr;
-		       epcr <=   ex_dslot & ex_branch_first_next & ex_two_insns_next ? if_pc : ex_dslot & ex_branch_first_next ? 
-				wb_pc : ex_dslot ? wb_pc2 : delayed1_ex_dslot ? 
+		       epcr <=   ex_dslot & ex_two_insns_next ? if_pc : ex_dslot ? 
+				wb_pc : delayed1_ex_dslot ? 
 			       dl_pc : ex_pc;
 		       dsx <= ex_dslot & (!same_stage_dslot_next | !ex_two_insns_next);
 		    end
@@ -570,8 +563,8 @@ assign except_flushpipe = |except_trig & ~|state;
 `ifdef OR1200_EXCEPT_TRAP			
 		    14'b00_0000_1???_????: begin
 		       except_type <=  `OR1200_EXCEPT_TRAP;
-		       epcr <=   ex_dslot & ex_branch_first_next & ex_two_insns_next ? if_pc : ex_dslot & ex_branch_first_next ? 
-				wb_pc : ex_dslot ? wb_pc2 : delayed1_ex_dslot ? 
+		       epcr <=   ex_dslot & ex_two_insns_next ? if_pc : ex_dslot ? 
+				wb_pc : delayed1_ex_dslot ? 
 			       id_pc : ex_pc;
 		       dsx <= ex_dslot & (!same_stage_dslot_next | !ex_two_insns_next);
 		    end
@@ -579,8 +572,8 @@ assign except_flushpipe = |except_trig & ~|state;
 `ifdef OR1200_EXCEPT_SYSCALL
 		    14'b00_0000_01??_????: begin
 		       except_type <=  `OR1200_EXCEPT_SYSCALL;
-		       epcr <= ex_dslot & ex_branch_first_next & ex_two_insns_next ? if_pc : (ex_dslot & ex_branch_first_next) ? 
-			       wb_pc : ex_dslot ? wb_pc2 : half_insn_done ? (ex_pc + 32'h4) : id_pc;
+		       epcr <= ex_dslot & ex_two_insns_next ? if_pc : ex_dslot ? 
+			       wb_pc : half_insn_done ? (ex_pc + 32'h4) : id_pc;
 		       dsx <= ex_dslot & (!same_stage_dslot_next | !ex_two_insns_next);
 		    end
 `endif
@@ -588,8 +581,8 @@ assign except_flushpipe = |except_trig & ~|state;
 		    14'b00_0000_001?_????: begin
 		       except_type <=  `OR1200_EXCEPT_DPF;
 		       eear <=  lsu_addr;
-		       epcr <=   ex_dslot & ex_branch_first_next & ex_two_insns_next ? if_pc : ex_dslot & ex_branch_first_next ?
-				wb_pc : ex_dslot ? wb_pc2 : delayed1_ex_dslot ? 
+		       epcr <=   ex_dslot & ex_two_insns_next ? if_pc : ex_dslot ?
+				wb_pc : delayed1_ex_dslot ? 
 			       dl_pc : ex_pc;
 		       dsx <= ex_dslot & (!same_stage_dslot_next | !ex_two_insns_next);
 		    end
@@ -598,8 +591,8 @@ assign except_flushpipe = |except_trig & ~|state;
 		    14'b00_0000_0001_????: begin	// Data Bus Error
 		       except_type <=  `OR1200_EXCEPT_BUSERR;
 		       eear <=  lsu_addr;
-		       epcr <= ex_dslot & ex_branch_first_next & ex_two_insns_next ? if_pc : ex_dslot & ex_branch_first_next ?  
-			       wb_pc : ex_dslot ? wb_pc2 : delayed1_ex_dslot ? 
+		       epcr <= ex_dslot & ex_two_insns_next ? if_pc : ex_dslot ?  
+			       wb_pc : delayed1_ex_dslot ? 
 			       dl_pc : ex_pc;
 		       dsx <= ex_dslot & (!same_stage_dslot_next | !ex_two_insns_next);
 		    end
@@ -607,8 +600,8 @@ assign except_flushpipe = |except_trig & ~|state;
 `ifdef OR1200_EXCEPT_RANGE
 		    14'b00_0000_0000_1???: begin
 		       except_type <=  `OR1200_EXCEPT_RANGE;
-		       epcr <= ex_dslot & ex_branch_first_next & ex_two_insns_next ? if_pc : ex_dslot & ex_branch_first_next ? 
-			       wb_pc : ex_dslot ? wb_pc2 : delayed1_ex_dslot ? 
+		       epcr <= ex_dslot & ex_two_insns_next ? if_pc : ex_dslot ? 
+			       wb_pc : delayed1_ex_dslot ? 
 			       dl_pc : delayed2_ex_dslot ? 
 			       id_pc : ex_pc;
 		       dsx <= ex_dslot & (!same_stage_dslot_next | !ex_two_insns_next);
@@ -617,24 +610,24 @@ assign except_flushpipe = |except_trig & ~|state;
 `ifdef OR1200_EXCEPT_FLOAT
 		    14'b00_0000_0000_01??: begin
 		       except_type <=  `OR1200_EXCEPT_FLOAT;
-		       epcr <= ex_dslot & ex_branch_first_next & ex_two_insns_next ? if_pc : (ex_dslot & ex_branch_first_next) ? 
-			       wb_pc : ex_dslot ? wb_pc2 : half_insn_done ? (ex_pc + 32'h4) : id_pc;
+		       epcr <= ex_dslot & ex_two_insns_next ? if_pc : ex_dslot ? 
+			       wb_pc : half_insn_done ? (ex_pc + 32'h4) : id_pc;
 		       dsx <= ex_dslot & (!same_stage_dslot_next | !ex_two_insns_next);
 		    end
 `endif
 `ifdef OR1200_EXCEPT_INT
 		    14'b00_0000_0000_001?: begin
 		       except_type <=  `OR1200_EXCEPT_INT;
-		       epcr <= ex_dslot & ex_branch_first_next & ex_two_insns_next ? if_pc : (ex_dslot & ex_branch_first_next) ? 
-			       wb_pc : ex_dslot ? wb_pc2 : half_insn_done ? (ex_pc + 32'h4) : id_pc;
+		       epcr <= ex_dslot & ex_two_insns_next ? if_pc : ex_dslot ? 
+			       wb_pc : half_insn_done ? (ex_pc + 32'h4) : id_pc;
 		       dsx <= ex_dslot & (!same_stage_dslot_next | !ex_two_insns_next);
 		    end
 `endif
 `ifdef OR1200_EXCEPT_TICK
 		    14'b00_0000_0000_0001: begin
 		       except_type <=  `OR1200_EXCEPT_TICK;
-		       epcr <= ex_dslot & ex_branch_first_next & ex_two_insns_next ? if_pc : (ex_dslot & ex_branch_first_next) ? 
-			       wb_pc : ex_dslot ? wb_pc2 : half_insn_done ? (ex_pc + 32'h4) : id_pc;
+		       epcr <= ex_dslot & ex_two_insns_next ? if_pc : ex_dslot ? 
+			       wb_pc : half_insn_done ? (ex_pc + 32'h4) : id_pc;
 		       dsx <= ex_dslot & (!same_stage_dslot_next | !ex_two_insns_next);
 		    end
 `endif

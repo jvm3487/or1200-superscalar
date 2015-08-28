@@ -385,7 +385,6 @@ wire    			dependency_hazard_stall;
    reg [1:0] 			data_dependent_next;   
    reg [1:0] 			data_dependent_next_next;		
    wire 			same_stage_dslot;
-   wire				ex_branch_first;
 	
    //Used for or1200-monitor
    wire 	flag1;
@@ -617,8 +616,7 @@ or1200_ctrl or1200_ctrl(
 	.data_dependent(data_dependent),
         .half_insn_done(half_insn_done),
 	.half_insn_done_next(half_insn_done_next),
-	.same_stage_dslot(same_stage_dslot),
-	.ex_branch_first(ex_branch_first)
+	.same_stage_dslot(same_stage_dslot)
 );
 
 //
@@ -1114,7 +1112,6 @@ or1200_except or1200_except(
 	.ex_two_insns_next(ex_two_insns_next),
 	.half_insn_done(half_insn_done),
 	.same_stage_dslot(same_stage_dslot),
-	.ex_branch_first(ex_branch_first),
 	.dependency_hazard_stall(dependency_hazard_stall)
 );
 
