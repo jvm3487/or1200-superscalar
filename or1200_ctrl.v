@@ -252,7 +252,7 @@ output  				ex_branch_first;
    reg 						dc_no_writethrough;
    wire						id_void;
    reg 						id_void_next;		
-   reg 						ex_branch_first;
+   wire 					ex_branch_first;
    reg [`OR1200_FPUOP_WIDTH-1:0] 		fpu_op;
    reg [`OR1200_FPUOP_WIDTH-1:0] 		fpu_op_next;
    reg [`OR1200_MULTICYCLE_WIDTH-1:0] 		multicycle;
@@ -304,7 +304,7 @@ output  				ex_branch_first;
 assign force_dslot_fetch = 1'b0;
 //one more instruction after branch must be executed - determines if it is the instruction in the same stage or the previous stage
 //the pipeline does not naturally insert nops so this is only possibility
-assign same_stage_dslot = (|ex_branch_op & ex_branch_taken & (((ex_insn[63:58] != `OR1200_OR32_NOP) | !ex_insn[48]) | (((ex_insn_intermediate[31:26] != `OR1200_OR32_NOP) | !ex_insn_intermediate[16]) & half_insn_done))) & ex_branch_first; //last part added because no such thing as same_stage_dslot when branch is in second part of instruction
+assign same_stage_dslot = (|ex_branch_op & ex_branch_taken & (((ex_insn[63:58] != `OR1200_OR32_NOP) | !ex_insn[48]) | (((ex_insn_intermediate[31:26] != `OR1200_OR32_NOP) | !ex_insn_intermediate[16]) & half_insn_done))); 
 assign previous_stage_dslot = (|ex_branch_op & !id_void & ex_branch_taken);
  /*| (|ex_branch_op & half_insn_done_next & ex_branch_taken); //This means that a branch in the second half of an insn is being executed and dslot instruction should be in the if stage*/ 
 		     
@@ -472,6 +472,7 @@ always @(*) begin
       wait_on <= wait_on_next;
       multicycle <= multicycle_next;
       id_illegal <= id_illegal_next;
+      id_branch_op <= id_branch_op_next;
    end   
    else if (same_stage_dslot) begin
       hazard_stall <= 1'b0;
@@ -482,6 +483,7 @@ always @(*) begin
       wait_on <= `OR1200_WAIT_ON_NOTHING;
       multicycle <= `OR1200_ONE_CYCLE;
       id_illegal <= 1'b0;
+      id_branch_op <= `OR1200_BRANCHOP_NOP;
    end
    else begin
       id_lsu_op <= id_lsu_opa;
@@ -491,27 +493,13 @@ always @(*) begin
       wait_on <= wait_ona;
       multicycle <= multicyclea;
       id_illegal <= id_illegala;
-      if (!no_more_dslot & ((id_lsu_opc != `OR1200_LSUOP_NOP) | (id_mac_opc != `OR1200_MACOP_NOP) | id_macrc_opc | (fpu_opc != {`OR1200_FPUOP_WIDTH{1'b0}}) | (wait_onc != `OR1200_WAIT_ON_NOTHING) | (multicyclec != `OR1200_ONE_CYCLE) | id_illegalc | du_hwbkpt | (id_insn[31:26] == `OR1200_OR32_XSYNC) | (id_insn[63:58] == `OR1200_OR32_XSYNC)))
+      id_branch_op <= id_branch_opa;
+      if (!no_more_dslot & ((id_lsu_opc != `OR1200_LSUOP_NOP) | (id_mac_opc != `OR1200_MACOP_NOP) | id_macrc_opc | (fpu_opc != {`OR1200_FPUOP_WIDTH{1'b0}}) | (wait_onc != `OR1200_WAIT_ON_NOTHING) | (multicyclec != `OR1200_ONE_CYCLE) | id_illegalc | du_hwbkpt | (id_insn[31:26] == `OR1200_OR32_XSYNC) | (id_insn[63:58] == `OR1200_OR32_XSYNC) | (id_branch_opc != `OR1200_BRANCHOP_NOP)))
 	hazard_stall <= 1'b1;
       else
 	hazard_stall <= 1'b0;
    end 
 end
-
-//no longer structural hazard check for Branch Unit since branches can now be executed by either stage of pipeline
-//resolves id_branch_op for genpc.v
-//only need to stall if second insn is a branch because other ALU can handle normal dslot instruction
-//no such thing as two branches in a row
-always @(id_branch_opa or id_branch_opc or id_insn or same_stage_dslot or no_more_dslot or half_insn_done or id_branch_op_next) begin
-   if (half_insn_done)
-     id_branch_op <= id_branch_op_next;
-   else if (same_stage_dslot) //dslot logic needed to keep from stalling for no reason
-     id_branch_op <= `OR1200_BRANCHOP_NOP;
-   else if ((id_branch_opc != `OR1200_BRANCHOP_NOP) & !no_more_dslot)
-     id_branch_op <= id_branch_opc;
-   else
-     id_branch_op <= id_branch_opa;
-end 
    
 //
 // Instruction latch in ex_insn
@@ -682,7 +670,6 @@ always @(*) begin
       alu_op2 <= alu_op2_next;
       comp_op <= comp_op_next;
       ex_branch_op <= ex_branch_op_next;
-      ex_branch_first <= 1'b1; //branch is now first instruction in pipeline
       dc_no_writethrough <= dc_no_writethrough_next;      
       spr_read <= spr_read_next;
       spr_write <= spr_write_next;
@@ -699,21 +686,8 @@ always @(*) begin
       comp_op <= comp_opa;
       //This is needed in case a NOP is inserted partway through the pipeline
       if (ex_insn[31:26] != `OR1200_OR32_NOP) begin
-	 //two branches back to back is not possible
-	 if (ex_branch_opa != `OR1200_BRANCHOP_NOP) begin
-	    ex_branch_op <= ex_branch_opa;
-	    ex_branch_addrtarget <= ex_branch_addrtargeta;
-	    ex_branch_first <= 1'b1;
-	 end
-	 else if (ex_insn[63:58] != `OR1200_OR32_NOP) begin
-	    ex_branch_op <= ex_branch_opc;
-	    ex_branch_addrtarget <= ex_branch_addrtargetc;
-	    ex_branch_first <= 1'b0;
-	 end
-	 else begin
-	    ex_branch_op <= `OR1200_BRANCHOP_NOP;
-	    ex_branch_first <= 1'b0;
-	 end
+	 ex_branch_op <= ex_branch_opa;
+	 ex_branch_addrtarget <= ex_branch_addrtargeta;
 	 dc_no_writethrough <= dc_no_writethrougha;
 	 spr_read <= spr_reada;
 	 spr_write <= spr_writea;
@@ -724,7 +698,6 @@ always @(*) begin
       end 
       else begin
 	 ex_branch_op <= `OR1200_BRANCHOP_NOP;
-	 ex_branch_first <= 1'b0;
 	 dc_no_writethrough <= 1'b0;
 	 spr_read <= 1'b0;
 	 spr_write <= 1'b0;
@@ -736,6 +709,8 @@ always @(*) begin
    end
 end
 
+assign ex_branch_first = 1'b1;   
+   
 always@(*) begin   
    //This is needed for the case that a NOP is inserted partway through the pipeline due to a stall
    if ((ex_insn[63:58] != `OR1200_OR32_NOP) | !ex_insn[48]) begin   
@@ -749,7 +724,7 @@ always@(*) begin
       ex_two_insns <= 1'b0;
    end
 end
-
+   
 assign id_void = id_voida; //only important for external CPU debugging
    
 //Differentiate for forwarding logic - both sets of id_decode use this for the forwarding logic for data dependency

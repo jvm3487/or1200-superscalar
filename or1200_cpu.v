@@ -269,7 +269,7 @@ wire	[dw-1:0]		operand_c;
 wire	[dw-1:0]		operand_d;
 reg	[dw-1:0]		operand_c_next;
 reg	[dw-1:0]		operand_d_next;
-reg     [dw-1:0] 		operand_branch;   
+wire     [dw-1:0] 		operand_branch;   
 wire	[dw-1:0]		alu_dataout;
 wire	[dw-1:0]		alu_dataoutc;
 wire	[dw-1:0]		lsu_dataout;
@@ -394,7 +394,7 @@ wire    			dependency_hazard_stall;
    reg 	flag1_next;
    reg 	over1_next;
    reg 	carry1_next;  
-   reg  flag_branch;
+   wire  flag_branch;
    
 //
 // Send exceptions to Debug Unit
@@ -471,18 +471,8 @@ assign sig_range = sr[`OR1200_SR_OV];
 // Instantiation of instruction fetch block
 //
 // Mux to determine which operand is the branch instruction
-always @(*)
-  if (ex_branch_first) begin
-     operand_branch <= operand_b;
-     flag_branch <= flag;
-  end
-  else begin
-     operand_branch <= operand_d;
-     if (flag_we_alu | flag_we_fpu)
-       flag_branch <= flagforwa;
-     else
-       flag_branch <= flag;
-  end
+assign operand_branch = operand_b;
+assign flag_branch = flag;
    
 or1200_genpc #(.boot_adr(boot_adr)) or1200_genpc(
 	.clk(clk),
