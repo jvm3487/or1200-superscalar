@@ -60,8 +60,8 @@
 module or1200_dpram
   (
    // Generic synchronous double-port RAM interface
-   clk_a, rst, ce_a, addr_a, do_a,
-   clk_b, ce_b, we_b, addr_b, di_b, addr_c, di_c, we_c
+   clk, rst, ce_a, addr_a, do_a, ce_b, addr_b, do_b, ce_c, addr_c, do_c, ce_d, addr_d, do_d,
+   we_e, addr_e, di_e, addr_f, di_f, we_f
    );
    
    //
@@ -73,19 +73,26 @@ module or1200_dpram
    //
    // Generic synchronous double-port RAM interface
    //
-   input			clk_a;	// Clock
+   input			clk;	// Clock
    input 			rst;
    input			ce_a;	// Chip enable input
    input [aw-1:0] 		addr_a;	// address bus inputs
    output [dw-1:0] 		do_a;	// output data bus
-   input			clk_b;	// Clock
    input			ce_b;	// Chip enable input
-   input			we_b;	// Write enable input
    input [aw-1:0] 		addr_b;	// address bus inputs
-   input [dw-1:0] 		di_b;	// input data bus
-   input [aw-1:0] 		addr_c;
-   input [dw-1:0] 		di_c;
-   input 			we_c;
+   output [dw-1:0] 		do_b;	// output data bus
+   input			ce_c;	// Chip enable input
+   input [aw-1:0] 		addr_c;	// address bus inputs
+   output [dw-1:0] 		do_c;	// output data bus
+   input			ce_d;	// Chip enable input
+   input [aw-1:0] 		addr_d;	// address bus inputs
+   output [dw-1:0] 		do_d;	// output data bus
+   input			we_e;	// Write enable input
+   input [aw-1:0] 		addr_e;	// address bus inputs
+   input [dw-1:0] 		di_e;	// input data bus
+   input [aw-1:0] 		addr_f;
+   input [dw-1:0] 		di_f;
+   input 			we_f;
    
    //
    // Internal wires and registers
@@ -100,7 +107,9 @@ module or1200_dpram
    //
    reg [dw-1:0] 		mem [(1<<aw)-1:0] /*synthesis syn_ramstyle = "no_rw_check"*/;	// RAM content
    reg [aw-1:0] 		addr_a_reg;		// RAM address registered
-
+   reg [aw-1:0] 		addr_b_reg;
+   reg [aw-1:0] 		addr_c_reg;   
+   reg [aw-1:0] 		addr_d_reg;
 
    // Function to access GPRs (for use by Verilator). No need to hide this one
    // from the simulator, since it has an input (as required by IEEE 1364-2001).
@@ -125,26 +134,40 @@ module or1200_dpram
    //
    // Data output drivers
    //
-   //assign do_a = (oe_a) ? mem[addr_a_reg] : {dw{1'b0}};
    assign do_a = mem[addr_a_reg];
+   assign do_b = mem[addr_b_reg];
+   assign do_c = mem[addr_c_reg];
+   assign do_d = mem[addr_d_reg];
    
    //
    // RAM read
    //
-   always @(posedge clk_a or `OR1200_RST_EVENT rst) begin
-      if (rst == `OR1200_RST_VALUE)
-	addr_a_reg <= {aw{1'b0}};
-      else if (ce_a)
-	addr_a_reg <=  addr_a;
+   always @(posedge clk or `OR1200_RST_EVENT rst) begin
+      if (rst == `OR1200_RST_VALUE) begin
+	 addr_a_reg <= {aw{1'b0}};
+      	 addr_b_reg <= {aw{1'b0}};
+	 addr_c_reg <= {aw{1'b0}};
+	 addr_d_reg <= {aw{1'b0}};
+      end
+      else begin
+	 if (ce_a) 
+	   addr_a_reg <= addr_a;
+	 if (ce_b)
+	   addr_b_reg <= addr_b;
+	 if (ce_c)
+	   addr_c_reg <= addr_c;
+	 if (ce_d)
+	   addr_d_reg <= addr_d;
+      end
    end
    //
    // RAM write
    //
-   always @(posedge clk_b) begin
-      if (we_c)
-	mem[addr_c] <= di_c;
-      if (ce_b & we_b & (!we_c | (addr_c != addr_b))) //second part of logic is needed in case writing to same register
-	mem[addr_b] <=  di_b;
+   always @(posedge clk) begin
+      if (we_f)
+	mem[addr_f] <= di_f;
+      if (we_e & (!we_f | (addr_f != addr_e))) //second part of logic is needed in case writing to same register
+	mem[addr_e] <=  di_e;
    end   
    
 endmodule // or1200_dpram

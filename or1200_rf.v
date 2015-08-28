@@ -304,7 +304,7 @@ or1200_tpram_32x32 rf_b(
 
 `else
 //The following is the option that seems to be enabled
-//Just enabled two more registers based on this
+// Condensed this down to one register so the signals don't have to travel as far on the FPGA - this was hurting timing
 //A second write port was created to allow for two insns to be written in a clock cycle
 `ifdef OR1200_RFRAM_DUALPORT
 
@@ -318,109 +318,37 @@ or1200_tpram_32x32 rf_b(
       )
    rf_a
      (
-      // Port A
-      .clk_a(clk),
+      // Read Port A
+      .clk(clk),
       .rst(rst),
       .ce_a(rf_ena),
       .addr_a(rf_addra),
       .do_a(from_rfa),
+
+      // Read Port B
+      .ce_b(rf_enb),
+      .addr_b(addrb),
+      .do_b(from_rfb),
+
+       // Read Port B
+      .ce_c(rf_enc),
+      .addr_c(rf_addrc),
+      .do_c(from_rfc),
+
+      // Read Port B
+      .ce_d(rf_end),
+      .addr_d(addrd),
+      .do_d(from_rfd),
       
-      // Port B
-      .clk_b(clk),
-      .ce_b(rf_we),
-      .we_b(rf_we),
-      .addr_b(rf_addrw),
-      .di_b(rf_dataw),
+      // Write Port 1
+      .we_e(rf_we),
+      .addr_e(rf_addrw),
+      .di_e(rf_dataw),
 
       // Additional Write Port
-      .addr_c(addrw2),
-      .di_c(dataw2),
-      .we_c(rf_we2)
-      );
-
-   //
-   // Instantiation of register file two-port RAM B
-   //
-   or1200_dpram #
-     (
-      .aw(5),
-      .dw(32)
-      )
-   rf_b
-     (
-      // Port A
-      .clk_a(clk),
-      .rst(rst),
-      .ce_a(rf_enb),
-      .addr_a(addrb),
-      .do_a(from_rfb),
-      
-      // Port B
-      .clk_b(clk),
-      .ce_b(rf_we),
-      .we_b(rf_we),
-      .addr_b(rf_addrw),
-      .di_b(rf_dataw),
-
-      // Additional Write Port
-      .addr_c(addrw2),
-      .di_c(dataw2),
-      .we_c(rf_we2)
-      );
-//For second instruction
-   or1200_dpram #
-     (
-      .aw(5),
-      .dw(32)
-      )
-   rf_c
-     (
-      // Port A
-      .clk_a(clk),
-      .rst(rst),
-      .ce_a(rf_enc),
-      .addr_a(rf_addrc),
-      .do_a(from_rfc),
-      
-      // Port B
-      .clk_b(clk),
-      .ce_b(rf_we),
-      .we_b(rf_we),
-      .addr_b(rf_addrw),
-      .di_b(rf_dataw),
-
-      // Additional Write Port
-      .addr_c(addrw2),
-      .di_c(dataw2),
-      .we_c(rf_we2)
-      );
-
-//For second instruction
-   or1200_dpram #
-     (
-      .aw(5),
-      .dw(32)
-      )
-   rf_d
-     (
-      // Port A
-      .clk_a(clk),
-      .rst(rst), 
-      .ce_a(rf_end),
-      .addr_a(addrd),
-      .do_a(from_rfd),
-      
-      // Port B
-      .clk_b(clk),
-      .ce_b(rf_we),
-      .we_b(rf_we),
-      .addr_b(rf_addrw),
-      .di_b(rf_dataw),
-
-      // Additional Write Port
-      .addr_c(addrw2),
-      .di_c(dataw2),
-      .we_c(rf_we2)
+      .addr_f(addrw2),
+      .di_f(dataw2),
+      .we_f(rf_we2)
       );
 
    //This is only used by the simulator(or1200-monitor)
