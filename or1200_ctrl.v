@@ -385,27 +385,17 @@ always @(posedge clk or `OR1200_RST_EVENT rst) begin
 	if (rst == `OR1200_RST_VALUE) begin //modified to make nops type 141
 	   id_insn <= {2{`OR1200_OR32_NOP, 26'h141_0000}};
 	end
-        else if (id_flushpipe) begin
+        else if (id_flushpipe | (!id_freeze & dependency_hazard_stall) | same_stage_dslot) begin
            id_insn <= {2{`OR1200_OR32_NOP, 26'h141_0000}};
-	end
-	else if (!id_freeze & dependency_hazard_stall) begin
-	   id_insn <= {2{`OR1200_OR32_NOP, 26'h141_0000}};
 	end
 	else if (!id_freeze) begin
 	   id_insn[31:0] <= if_insn[31:0];
 	   //This was added because theres a chance a nop is fetched between a taken branch and the target of the branch
-	   if (ex_branch_taken & !no_more_dslot)
+	   if (ex_branch_taken)
 	     id_insn[63:32] <= {`OR1200_OR32_NOP, 26'h141_0000};
 	   else
 	     id_insn[63:32] <= if_insn[63:32];
-	end
-        // purge the pipeline appropriately if id_freeze goes high on the same cycle as no_more_dslot
-	else if (same_stage_dslot) begin
-	   id_insn <= {2{`OR1200_OR32_NOP, 26'h141_0000}};
-	end
-	else if (previous_stage_dslot) begin
-	   id_insn[63:32] <= {`OR1200_OR32_NOP, 26'h141_0000};
-	   id_insn[31:0] <= id_insn[31:0];
+       
 `ifdef OR1200_VERBOSE
 // synopsys translate_off
 		$display("%t: id_insn <= %h", $time, if_insn);
@@ -415,8 +405,7 @@ always @(posedge clk or `OR1200_RST_EVENT rst) begin
 end
 
 //Any type of hazard or dependency stall will stall the pipeline   
-   assign dependency_hazard_stall = ((|data_dependent) | hazard_stall);
- /*branch_hazard_stall | system_stall*/
+assign dependency_hazard_stall = ((|data_dependent) | hazard_stall);
    
 //data dependency check of two insns in the same stage of pipeline   
 always @(*) begin
@@ -536,7 +525,6 @@ always @(posedge clk or `OR1200_RST_EVENT rst) begin
 `endif
 	end
 end
-
 
 //
 // l.macrc in EX stage
