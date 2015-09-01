@@ -385,12 +385,13 @@ always @(posedge clk or `OR1200_RST_EVENT rst) begin
 	if (rst == `OR1200_RST_VALUE) begin //modified to make nops type 141
 	   id_insn <= {2{`OR1200_OR32_NOP, 26'h141_0000}};
 	end
-        else if (id_flushpipe | (!id_freeze & dependency_hazard_stall) | same_stage_dslot) begin
+        else if (id_flushpipe | (!id_freeze & dependency_hazard_stall)) begin
            id_insn <= {2{`OR1200_OR32_NOP, 26'h141_0000}};
 	end
 	else if (!id_freeze) begin
 	   id_insn[31:0] <= if_insn[31:0];
 	   //This was added because theres a chance a nop is fetched between a taken branch and the target of the branch
+	   //In this instance the second half of the instruction should not be executed
 	   if (ex_branch_taken)
 	     id_insn[63:32] <= {`OR1200_OR32_NOP, 26'h141_0000};
 	   else
