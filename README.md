@@ -12,6 +12,7 @@ Current changes include:
 - Add stall logic in control to account for data and structural dependencies
 - Structural hazard only occur in the case where the 2nd instruction needs a one-wide structure or the first instruction needs a
 - one-wide structure and the 2nd instruction has a data dependency on it 
+- Branch operations can be executed in first half or second half of instruction
 - Add two additional copies of register files to be able to read registers for two instructions at end of if stage
 - Add logic to save state of second instruction if half of an instruction is finished executing due to one wide execute
 - Change freeze logic to account for a 2 fetch instruction being half complete

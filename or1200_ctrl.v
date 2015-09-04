@@ -183,7 +183,8 @@ output 					same_stage_dslot;
    reg [`OR1200_REGFILE_ADDR_WIDTH-1:0] 	wb_rfaddrw2;
    reg 						sel_imm;
    wire 				sel_imma;
-   wire					sel_immc;			
+   wire					sel_immc;
+   reg 					sel_imm_next;			
    reg [31:0] 				ex_simm_next;
    wire [31:0] 				ex_simma;
    wire [31:0] 				ex_simmc;
@@ -269,7 +270,6 @@ output 					same_stage_dslot;
    reg [`OR1200_LSUOP_WIDTH-1:0] 		id_lsu_op_next;
    reg [`OR1200_COMPOP_WIDTH-1:0] 		comp_op;
    reg 						sig_trap;		
-   reg 						sel_imm_next;
    reg 	[`OR1200_BRANCHOP_WIDTH-1:0]		id_branch_op_next;
    reg 						sig_syscall_next;
    reg 						dc_no_writethrough_next;
@@ -385,8 +385,13 @@ always @(posedge clk or `OR1200_RST_EVENT rst) begin
 	if (rst == `OR1200_RST_VALUE) begin //modified to make nops type 141
 	   id_insn <= {2{`OR1200_OR32_NOP, 26'h141_0000}};
 	end
-        else if (id_flushpipe | (!id_freeze & dependency_hazard_stall)) begin
+        else if (id_flushpipe) begin
            id_insn <= {2{`OR1200_OR32_NOP, 26'h141_0000}};
+	end
+	else if (!id_freeze & dependency_hazard_stall) begin
+	   // Just do the 2nd instruction because there's a stall
+	   id_insn[63:32] <= {`OR1200_OR32_NOP, 26'h141_0000};
+	   id_insn[31:0] <= id_insn[63:32];
 	end
 	else if (!id_freeze) begin
 	   id_insn[31:0] <= if_insn[31:0];
@@ -405,8 +410,9 @@ always @(posedge clk or `OR1200_RST_EVENT rst) begin
 	end
 end
 
-//Any type of hazard or dependency stall will stall the pipeline   
-assign dependency_hazard_stall = ((|data_dependent) | hazard_stall);
+//Any type of hazard or dependency stall will stall the pipeline
+//Delay slot not possible to set either of the input signals high    
+assign dependency_hazard_stall = (/*!no_more_dslot &*/ ((|data_dependent) | hazard_stall));
    
 //data dependency check of two insns in the same stage of pipeline   
 always @(*) begin
@@ -498,12 +504,12 @@ always @(posedge clk or `OR1200_RST_EVENT rst) begin
 	   half_insn_done <= 1'b0;
 	end
 	else if (!ex_freeze) begin
-	   if (half_insn_done) begin //half insn done used for data or structural hazard
+	   /*if (half_insn_done) begin //half insn done used for data or structural hazard
 	      ex_insn[31:0] <= ex_insn[63:32]; //half_insn_done so executing stalled instruction
 	      ex_insn[63:32] <= {`OR1200_OR32_NOP, 26'h141_0000};
 	      half_insn_done <= 1'b0;
-	   end
-	   else if (same_stage_dslot) begin 
+	   end*/
+	   if (same_stage_dslot) begin 
 	      ex_insn <=  {2{`OR1200_OR32_NOP, 26'h141_0000}};
 	      half_insn_done <= 1'b0;
 	   end
@@ -513,11 +519,15 @@ always @(posedge clk or `OR1200_RST_EVENT rst) begin
 	      half_insn_done <= 1'b0;
 	   end
 	   else begin
-	      ex_insn <= id_insn;
-	      if (dependency_hazard_stall)
-		half_insn_done <= 1'b1;
-	      else
-		half_insn_done <= 1'b0;
+	      ex_insn[31:0] <= id_insn[31:0];
+	      if (dependency_hazard_stall) begin
+		 half_insn_done <= 1'b1;
+		 ex_insn[63:32] <= {`OR1200_OR32_NOP, 26'h141_0000};
+	      end
+	      else begin
+		 half_insn_done <= 1'b0;
+		 ex_insn[63:32] <= id_insn[63:32];
+	      end
 	   end 
 `ifdef OR1200_VERBOSE
 // synopsys translate_off
@@ -591,10 +601,10 @@ always @(posedge clk or `OR1200_RST_EVENT rst) begin
 	// wb_insn changed by exception is not used elsewhere! 
 	else if (!wb_freeze) begin
 	   wb_insn <=  ex_insn[31:0];
-	   if (!half_insn_done)
+	   //if (!half_insn_done)
 	     wb_insn_intermediate <= ex_insn[63:32];
-	   else
-	     wb_insn_intermediate <= {`OR1200_OR32_NOP, 26'h041_0000};
+	   //else
+	     //wb_insn_intermediate <= {`OR1200_OR32_NOP, 26'h041_0000};
 	end
 end
    
@@ -616,6 +626,7 @@ always @(posedge clk or `OR1200_RST_EVENT rst) begin
      multicycle_next <= multicyclec;
      wait_on_next <= wait_onc;
      id_lsu_op_next <= id_lsu_opc;
+     sel_imm_next <= sel_immc;
      id_branch_op_next <= id_branch_opc;
      id_macrc_op_next <= id_macrc_opc;	
      id_mac_op_next <= id_mac_opc;
@@ -717,7 +728,7 @@ or1200_ctrl_id_decode or1200_ctrl_id_decode1(
 	.id_pc(id_pc),
         .du_hwbkpt(du_hwbkpt),
 	.abort_mvspr(abort_mvspr),
-	.sel_imm(sel_imma),				     
+	.sel_imm(half_insn_done ? sel_imm_next : sel_imma), // executing stalled instruction so need to get the right immediate	     
 	.rf_addrw1(rf_addrw),
 	.rf_addrw2(rf_addrw2),
 	.rfwb_op1(rfwb_op),
@@ -758,7 +769,7 @@ assign id_pc2 = {id_pc[31:2], 2'b0} + 32'h4;
    
 or1200_ctrl_id_decode or1200_ctrl_id_decode2(
 	.clk(clk),
-	.rst(rst),
+.rst(rst),
 	.id_insn(id_insn[63:32]),
 	.ex_freeze(ex_freeze),
 	.id_freeze(id_freeze),

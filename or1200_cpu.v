@@ -251,6 +251,8 @@ wire	[dw-1:0]		rf_dataw;
 wire	[dw-1:0]		rf_datawc;   
 wire	[dw-1:0]		rf_dataa;
 wire	[dw-1:0]		rf_datab;
+reg	[dw-1:0]		rf_dataa_inter;
+reg	[dw-1:0]		rf_datab_inter;   
 wire    [dw-1:0] 		rf_datac;
 wire    [dw-1:0] 		rf_datad;
 wire	[dw-1:0]		muxed_a;				
@@ -261,8 +263,8 @@ wire	[dw-1:0]		wb_forw;
 wire	[dw-1:0]		wb_forwc;
 wire				wbforw_valid;
 wire				wbforw_validc;
-reg	[dw-1:0]		operand_a;
-reg	[dw-1:0]		operand_b;
+wire	[dw-1:0]		operand_a;
+wire	[dw-1:0]		operand_b;
 wire	[dw-1:0]		operand_a_inter;
 wire	[dw-1:0]		operand_b_inter;   
 wire	[dw-1:0]		operand_c;
@@ -663,8 +665,8 @@ or1200_operandmuxes or1200_operandmuxes1(
 	.rst(rst),
 	.id_freeze(id_freeze),
 	.ex_freeze(ex_freeze),
-	.rf_dataa(rf_dataa),
-	.rf_datab(rf_datab),
+	.rf_dataa(rf_dataa_inter),
+	.rf_datab(rf_datab_inter),
 	.ex_forw(rf_dataw),
 	.ex_forw2(rf_datawc),
 	.wb_forw(wb_forw),
@@ -672,12 +674,12 @@ or1200_operandmuxes or1200_operandmuxes1(
 	.simm(id_simma),
 	.sel_a(sel_a),
 	.sel_b(sel_b),
-	.operand_a(operand_a_inter), //synchronous
-	.operand_b(operand_b_inter), //sync
+	.operand_a(operand_a), //synchronous
+	.operand_b(operand_b), //sync
 	.muxed_a(muxed_a),
 	.muxed_b(muxed_b)
 );
-
+/*
 //data dependency mux in the event that insns in the same stage depend on each other 
 always @(posedge clk or `OR1200_RST_EVENT rst) begin
   if (rst == `OR1200_RST_VALUE) begin
@@ -699,23 +701,25 @@ always @(posedge clk or `OR1200_RST_EVENT rst) begin
      data_dependent_next_next <= data_dependent_next;
   end
 end
+*/
 
+// id stage
 always @(*) begin
-   if (!half_insn_done_next) begin
-      operand_a <= operand_a_inter;
-      operand_b <= operand_b_inter;
+   if (!half_insn_done/*_next*/) begin
+      rf_dataa_inter <= rf_dataa;
+      rf_datab_inter <= rf_datab;
    end
-   else if (data_dependent_next_next == 2'd1) begin
+   /*else if (data_dependent_next_next == 2'd1) begin
       operand_a <= wb_forw;
       operand_b <= operand_d_next;
    end
    else if (data_dependent_next_next == 2'd2) begin
       operand_a <= operand_c_next;
       operand_b <= wb_forw;
-   end
+   end*/
    else begin
-      operand_a <= operand_c_next;
-      operand_b <= operand_d_next;
+      rf_dataa_inter <= operand_c;
+      rf_datab_inter <= operand_d;
    end
 end
    
