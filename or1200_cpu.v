@@ -383,9 +383,6 @@ wire    			flagforwa;
 wire    			dependency_hazard_stall;
    wire 			half_insn_done;
    wire 			half_insn_done_next;
-   wire [1:0] 			data_dependent;
-   reg [1:0] 			data_dependent_next;   
-   reg [1:0] 			data_dependent_next_next;		
    wire 			same_stage_dslot;
 	
    //Used for or1200-monitor
@@ -615,7 +612,6 @@ or1200_ctrl or1200_ctrl(
 	.except_illegala(except_illegala),
 	.except_illegalc(except_illegalc),		
 	.dc_no_writethrough(dc_no_writethrough),
-	.data_dependent(data_dependent),
         .half_insn_done(half_insn_done),
 	.half_insn_done_next(half_insn_done_next),
 	.same_stage_dslot(same_stage_dslot)

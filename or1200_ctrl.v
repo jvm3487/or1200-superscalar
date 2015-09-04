@@ -70,7 +70,7 @@ module or1200_ctrl
    multicycle, wait_on, wbforw_valid, wbforw_valid2, sig_syscall, sig_trap,
    force_dslot_fetch, no_more_dslot, id_void, ex_void, ex_spr_read, 
    ex_spr_write, 
-   id_macrc_op, ex_macrc_op, rfe, except_illegala, except_illegalc, dc_no_writethrough, data_dependent, half_insn_done, half_insn_done_next, same_stage_dslot
+   id_macrc_op, ex_macrc_op, rfe, except_illegala, except_illegalc, dc_no_writethrough, half_insn_done, half_insn_done_next, same_stage_dslot
    );
 
 //
@@ -199,8 +199,7 @@ output 					same_stage_dslot;
    reg 					half_insn_done;
    reg 					half_insn_done_next;
    reg [63:0] 				if_insn_intermediate;
-   output [1:0] 			data_dependent;
-   reg [1:0] 				data_dependent;
+   reg  				data_dependent;
    reg 					branch_hazard_stall;
    reg 					hazard_stall;
    wire [31:0]   				id_simma;
@@ -410,17 +409,13 @@ always @(posedge clk or `OR1200_RST_EVENT rst) begin
 	end
 end
 
-//Any type of hazard or dependency stall will stall the pipeline
-//Delay slot not possible to set either of the input signals high    
-assign dependency_hazard_stall = (/*!no_more_dslot &*/ ((|data_dependent) | hazard_stall));
+//Any type of hazard or dependency stall will stall the pipeline    
+assign dependency_hazard_stall = (!no_more_dslot & (data_dependent | hazard_stall));
    
 //data dependency check of two insns in the same stage of pipeline   
 always @(*) begin
    if (((id_insn[31:26] == `OR1200_OR32_JAL) | (id_insn[31:26] == `OR1200_OR32_JALR)) & ((id_insn[52:48] == 5'd9) | ((id_insn[47:43] == 5'd9) & !sel_immc)) & (id_insn[63:58] != `OR1200_OR32_NOP) & !no_more_dslot) begin //dslot logic needed to keep from stalling for no reason
-      if (id_insn[52:48] == 5'd9)
-	data_dependent <= 2'd1;
-      else
-	data_dependent <= 2'd2;
+      data_dependent <= 1'b1;
    end
    else if (((id_insn[25:21] == id_insn[52:48]) | ((id_insn[25:21] == id_insn[47:43]) & !sel_immc)) & (id_insn[63:58] != `OR1200_OR32_NOP) & !no_more_dslot) begin //dslot logic needed to keep from stalling for no reason
       case (id_insn[31:26])
@@ -436,18 +431,15 @@ always @(*) begin
 		      `OR1200_OR32_FLOAT,
 `endif
 			`OR1200_OR32_XORI: begin			   
-			   if (id_insn[25:21] == id_insn[52:48])
-			     data_dependent <= 2'd1;
-			   else
-			     data_dependent <= 2'd2;
+			   data_dependent <= 1'b1;
 			end
 	default: begin
-	   data_dependent <= 2'd0;
+	   data_dependent <= 1'b0;
 	end
       endcase 
    end 
    else begin
-      data_dependent <= 2'd0;
+      data_dependent <= 1'b0;
    end
 end
    
@@ -484,7 +476,7 @@ always @(*) begin
       multicycle <= multicyclea;
       id_illegal <= id_illegala;
       id_branch_op <= id_branch_opa;
-      if (!no_more_dslot & ((id_lsu_opc != `OR1200_LSUOP_NOP) | (id_mac_opc != `OR1200_MACOP_NOP) | id_macrc_opc | (fpu_opc != {`OR1200_FPUOP_WIDTH{1'b0}}) | (wait_onc != `OR1200_WAIT_ON_NOTHING) | (multicyclec != `OR1200_ONE_CYCLE) | id_illegalc | du_hwbkpt | (id_insn[31:26] == `OR1200_OR32_XSYNC) | (id_insn[63:58] == `OR1200_OR32_XSYNC) | (id_branch_opc != `OR1200_BRANCHOP_NOP)))
+      if ((id_lsu_opc != `OR1200_LSUOP_NOP) | (id_mac_opc != `OR1200_MACOP_NOP) | id_macrc_opc | (fpu_opc != {`OR1200_FPUOP_WIDTH{1'b0}}) | (wait_onc != `OR1200_WAIT_ON_NOTHING) | (multicyclec != `OR1200_ONE_CYCLE) | id_illegalc | du_hwbkpt | (id_insn[31:26] == `OR1200_OR32_XSYNC) | (id_insn[63:58] == `OR1200_OR32_XSYNC) | (id_branch_opc != `OR1200_BRANCHOP_NOP))
 	hazard_stall <= 1'b1;
       else
 	hazard_stall <= 1'b0;
