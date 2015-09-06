@@ -414,10 +414,10 @@ assign dependency_hazard_stall = (!no_more_dslot & (data_dependent | hazard_stal
    
 //data dependency check of two insns in the same stage of pipeline   
 always @(*) begin
-   if (((id_insn[31:26] == `OR1200_OR32_JAL) | (id_insn[31:26] == `OR1200_OR32_JALR)) & ((id_insn[52:48] == 5'd9) | ((id_insn[47:43] == 5'd9) & !sel_immc)) & (id_insn[63:58] != `OR1200_OR32_NOP) & !no_more_dslot) begin //dslot logic needed to keep from stalling for no reason
+   if (((id_insn[31:26] == `OR1200_OR32_JAL) | (id_insn[31:26] == `OR1200_OR32_JALR)) & ((id_insn[52:48] == 5'd9) | ((id_insn[47:43] == 5'd9) & !sel_immc)) & (id_insn[63:58] != `OR1200_OR32_NOP)) begin //dslot logic needed to keep from stalling for no reason
       data_dependent <= 1'b1;
    end
-   else if (((id_insn[25:21] == id_insn[52:48]) | ((id_insn[25:21] == id_insn[47:43]) & !sel_immc)) & (id_insn[63:58] != `OR1200_OR32_NOP) & !no_more_dslot) begin //dslot logic needed to keep from stalling for no reason
+   else if (((id_insn[25:21] == id_insn[52:48]) | ((id_insn[25:21] == id_insn[47:43]) & !sel_immc)) & (id_insn[63:58] != `OR1200_OR32_NOP)) begin //dslot logic needed to keep from stalling for no reason
       case (id_insn[31:26])
 	`OR1200_OR32_MOVHI, `OR1200_OR32_MFSPR, `OR1200_OR32_LWZ, `OR1200_OR32_LWS, `OR1200_OR32_LBZ, `OR1200_OR32_LBS,`OR1200_OR32_LHZ, `OR1200_OR32_LHS, `OR1200_OR32_ADDI, `OR1200_OR32_ADDIC, `OR1200_OR32_ANDI, `OR1200_OR32_ORI,
 `ifdef OR1200_MULT_IMPLEMENTED
@@ -729,7 +729,7 @@ or1200_ctrl_id_decode or1200_ctrl_id_decode1(
 	.wb_rfaddrw2(wb_rfaddrw2),
 	.wbforw_valid1(wbforw_valid),
 	.wbforw_valid2(wbforw_valid2),
-        .id_branch_op(id_branch_opa),
+        .id_branch_op(half_insn_done? id_branch_op_next : id_branch_opa),
 	.id_simm(id_simma),
 	.id_mac_op(id_mac_opa),				     
 	.id_macrc_op(id_macrc_opa),
