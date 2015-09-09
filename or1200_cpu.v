@@ -382,7 +382,6 @@ wire     			if_two_insns;
 wire    			flagforwa;
 wire    			dependency_hazard_stall;
    wire 			half_insn_done;
-   wire 			half_insn_done_next;
    wire 			same_stage_dslot;
 	
    //Used for or1200-monitor
@@ -613,7 +612,6 @@ or1200_ctrl or1200_ctrl(
 	.except_illegalc(except_illegalc),		
 	.dc_no_writethrough(dc_no_writethrough),
         .half_insn_done(half_insn_done),
-	.half_insn_done_next(half_insn_done_next),
 	.same_stage_dslot(same_stage_dslot)
 );
 
@@ -675,44 +673,13 @@ or1200_operandmuxes or1200_operandmuxes1(
 	.muxed_a(muxed_a),
 	.muxed_b(muxed_b)
 );
-/*
-//data dependency mux in the event that insns in the same stage depend on each other 
-always @(posedge clk or `OR1200_RST_EVENT rst) begin
-  if (rst == `OR1200_RST_VALUE) begin
-     operand_c_next <= 32'h0;
-     operand_d_next <= 32'h0;
-     data_dependent_next <= 2'd0;
-     data_dependent_next_next <= 2'd0;
-  end
-  else if (id_flushpipe) begin
-     operand_c_next <= 32'h0;
-     operand_d_next <= 32'h0;
-     data_dependent_next <= 2'd0;
-     data_dependent_next_next <= 2'd0;
-  end
-  else if (!ex_freeze) begin
-     operand_c_next <= operand_c;
-     operand_d_next <= operand_d;
-     data_dependent_next <= data_dependent;
-     data_dependent_next_next <= data_dependent_next;
-  end
-end
-*/
 
 // id stage
 always @(*) begin
-   if (!half_insn_done/*_next*/) begin
+   if (!half_insn_done) begin
       rf_dataa_inter <= rf_dataa;
       rf_datab_inter <= rf_datab;
    end
-   /*else if (data_dependent_next_next == 2'd1) begin
-      operand_a <= wb_forw;
-      operand_b <= operand_d_next;
-   end
-   else if (data_dependent_next_next == 2'd2) begin
-      operand_a <= operand_c_next;
-      operand_b <= wb_forw;
-   end*/
    else begin
       rf_dataa_inter <= operand_c;
       rf_datab_inter <= operand_d;
@@ -945,10 +912,6 @@ or1200_sprs or1200_sprs(
 or1200_lsu or1200_lsu(
 	.clk(clk),
 	.rst(rst),
-	//This was changed due to possibility of load being second half of instruction and a data dependency
-	//It performs an ALU type operation which does not need to occur in decode stage
-	//.id_addrbase(muxed_a_lsu),
-	//.id_addrofs(id_simm_lsu),
 	.ex_addrbase(operand_a),
 	.ex_addrofs(ex_simm),
 	.id_lsu_op(id_lsu_op),

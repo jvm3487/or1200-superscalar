@@ -70,7 +70,7 @@ module or1200_ctrl
    multicycle, wait_on, wbforw_valid, wbforw_valid2, sig_syscall, sig_trap,
    force_dslot_fetch, no_more_dslot, id_void, ex_void, ex_spr_read, 
    ex_spr_write, 
-   id_macrc_op, ex_macrc_op, rfe, except_illegala, except_illegalc, dc_no_writethrough, half_insn_done, half_insn_done_next, same_stage_dslot
+   id_macrc_op, ex_macrc_op, rfe, except_illegala, except_illegalc, dc_no_writethrough, half_insn_done, same_stage_dslot
    );
 
 //
@@ -154,7 +154,6 @@ output					except_illegala;
 output					except_illegalc;   
 output  				dc_no_writethrough;
 output   				half_insn_done;  
-output 	                 		half_insn_done_next;
 output [`OR1200_REGFILE_ADDR_WIDTH-1:0] 	rf_addrw2;	
 output 					same_stage_dslot;   
 				
@@ -165,7 +164,6 @@ output 					same_stage_dslot;
    wire [`OR1200_BRANCHOP_WIDTH-1:0] 		id_branch_opa;
    wire [`OR1200_BRANCHOP_WIDTH-1:0] 		id_branch_opc;
    reg [`OR1200_BRANCHOP_WIDTH-1:0] 		ex_branch_op;
-   reg [`OR1200_BRANCHOP_WIDTH-1:0] 		ex_branch_op_next;
    wire [`OR1200_BRANCHOP_WIDTH-1:0] 		ex_branch_opc;
    wire [`OR1200_BRANCHOP_WIDTH-1:0] 		ex_branch_opa;
    wire [31:0] 				id_pc2;   
@@ -186,7 +184,6 @@ output 					same_stage_dslot;
    wire 				sel_imma;
    wire					sel_immc;
    reg 					sel_imm_next;			
-   reg [31:0] 				ex_simm_next;
    wire [31:0] 				ex_simma;
    wire [31:0] 				ex_simmc;
    reg [31:0] 				ex_simm;
@@ -194,11 +191,9 @@ output 					same_stage_dslot;
    reg 					ex_delayslot_dsi;
    reg 					ex_delayslot_nop;
    reg [31:2] 				ex_branch_addrtarget;
-   reg [31:2] 				ex_branch_addrtarget_next;
    wire [31:2] 				ex_branch_addrtargeta;
    wire [31:2] 				ex_branch_addrtargetc;
    reg 					half_insn_done;
-   reg 					half_insn_done_next;
    reg [63:0] 				if_insn_intermediate;
    reg  				data_dependent;
    reg 					branch_hazard_stall;
@@ -246,17 +241,12 @@ output 					same_stage_dslot;
    reg 						sig_syscall;
    reg 						id_macrc_op;
    reg 	[`OR1200_MACOP_WIDTH-1:0]		id_mac_op;	
-   reg 						id_macrc_op_next;
-   reg [`OR1200_MACOP_WIDTH-1:0]		id_mac_op_next;
    reg 						dc_no_writethrough;
    wire						id_void;
    reg 						id_void_next;		
    reg [`OR1200_FPUOP_WIDTH-1:0] 		fpu_op;
-   reg [`OR1200_FPUOP_WIDTH-1:0] 		fpu_op_next;
    reg [`OR1200_MULTICYCLE_WIDTH-1:0] 		multicycle;
-   reg [`OR1200_MULTICYCLE_WIDTH-1:0] 		multicycle_next;
-   reg [`OR1200_WAIT_ON_WIDTH-1:0] 		wait_on;
-   reg [`OR1200_WAIT_ON_WIDTH-1:0] 		wait_on_next;   
+   reg [`OR1200_WAIT_ON_WIDTH-1:0] 		wait_on;   
    reg [`OR1200_REGFILE_ADDR_WIDTH-1:0] 	rf_addrw;
    wire						except_illegal;
    reg [`OR1200_ALUOP_WIDTH-1:0] 		alu_op;
@@ -267,20 +257,9 @@ output 					same_stage_dslot;
    reg [`OR1200_RFWBOP_WIDTH-1:0] 		rfwb_op;
    reg [`OR1200_RFWBOP_WIDTH-1:0] 		rfwb_op2;
    reg [`OR1200_LSUOP_WIDTH-1:0] 		id_lsu_op;
-   reg [`OR1200_LSUOP_WIDTH-1:0] 		id_lsu_op_next;
    reg [`OR1200_COMPOP_WIDTH-1:0] 		comp_op;
    reg 						sig_trap;		
    reg 	[`OR1200_BRANCHOP_WIDTH-1:0]		id_branch_op_next;
-   reg 						sig_syscall_next;
-   reg 						dc_no_writethrough_next;
-   reg [`OR1200_REGFILE_ADDR_WIDTH-1:0] 	rf_addrw_next;
-   reg [`OR1200_ALUOP_WIDTH-1:0] 		alu_op_next;
-   reg [`OR1200_ALUOP2_WIDTH-1:0] 		alu_op2_next;
-   reg 						spr_read_next;
-   reg 						spr_write_next;
-   reg [`OR1200_RFWBOP_WIDTH-1:0] 		rfwb_op_next;
-   reg [`OR1200_COMPOP_WIDTH-1:0] 		comp_op_next;
-   reg 						sig_trap_next;
    reg 						ex_two_insns;
    wire 					id_two_insns; 
    wire 					same_stage_dslot;
@@ -288,7 +267,6 @@ output 					same_stage_dslot;
    reg 						except_illegala;
    wire						except_illegalc;
    reg 						id_illegal;
-   reg 						id_illegal_next;
    wire 					id_illegala;
    wire 					id_illegalc;
    
@@ -445,18 +423,7 @@ always @(*) begin
 end
    
 //structural hazard check for LSU, multiplication, fpu, insn that take longer than a cycle, illegal instructions, and system stalls
-always @(*) begin
-   /*if (half_insn_done) begin
-      hazard_stall <= 1'b0;
-      id_lsu_op <= id_lsu_opa;
-      id_mac_op <= id_mac_opa;
-      id_macrc_op <= id_macrc_opa;
-      fpu_op <= fpu_opa;
-      wait_on <= wait_ona;
-      multicycle <= multicyclea;
-      id_illegal <= id_illegala;
-      id_branch_op <= id_branch_op_next;
-   end*/   
+always @(*) begin   
    if (same_stage_dslot) begin
       hazard_stall <= 1'b0;
       id_lsu_op <= `OR1200_LSUOP_NOP;
@@ -497,11 +464,6 @@ always @(posedge clk or `OR1200_RST_EVENT rst) begin
 	   half_insn_done <= 1'b0;
 	end
 	else if (!ex_freeze) begin
-	   /*if (half_insn_done) begin //half insn done used for data or structural hazard
-	      ex_insn[31:0] <= ex_insn[63:32]; //half_insn_done so executing stalled instruction
-	      ex_insn[63:32] <= {`OR1200_OR32_NOP, 26'h141_0000};
-	      half_insn_done <= 1'b0;
-	   end*/
 	   if (same_stage_dslot) begin 
 	      ex_insn <=  {2{`OR1200_OR32_NOP, 26'h141_0000}};
 	      half_insn_done <= 1'b0;
@@ -594,106 +556,60 @@ always @(posedge clk or `OR1200_RST_EVENT rst) begin
 	// wb_insn changed by exception is not used elsewhere! 
 	else if (!wb_freeze) begin
 	   wb_insn <=  ex_insn[31:0];
-	   //if (!half_insn_done)
-	     wb_insn_intermediate <= ex_insn[63:32];
-	   //else
-	     //wb_insn_intermediate <= {`OR1200_OR32_NOP, 26'h041_0000};
+	   wb_insn_intermediate <= ex_insn[63:32];
 	end
 end
    
 //chooses between first and second insn during testing phase
 always @(posedge clk or `OR1200_RST_EVENT rst) begin
   if (rst == `OR1200_RST_VALUE) begin
-     half_insn_done_next <= 1'b0;
      ex_two_insns_next <= 1'b0;
   end
   else if (id_flushpipe) begin
-     half_insn_done_next <= 1'b0;
      ex_two_insns_next <= 1'b0;
   end
    //These instructions are saved in the event of a stall and need to execute other instruction 
-  else if (!ex_freeze) begin
-     half_insn_done_next <= half_insn_done;     
+  else if (!ex_freeze) begin     
      ex_two_insns_next <= ex_two_insns;
-     fpu_op_next <= fpu_opc;
-     multicycle_next <= multicyclec;
-     wait_on_next <= wait_onc;
-     id_lsu_op_next <= id_lsu_opc;
      sel_imm_next <= sel_immc;
      id_branch_op_next <= id_branch_opc;
-     id_macrc_op_next <= id_macrc_opc;	
-     id_mac_op_next <= id_mac_opc;
-     id_illegal_next <= id_illegalc;
-     id_pc_next <= id_pc2;
-     sig_syscall_next <= sig_syscallc;
-     dc_no_writethrough_next <= dc_no_writethroughc;
-     rf_addrw_next <= rf_addrwc;
-     alu_op_next <= alu_opc;
-     alu_op2_next <= alu_op2c;
-     spr_read_next <= spr_readc;
-     spr_write_next <= spr_writec;
-     rfwb_op_next <= rfwb_opc;
-     comp_op_next <= comp_opc;
-     sig_trap_next <= sig_trapc;
-     ex_branch_op_next <= ex_branch_opc;
-     ex_simm_next <= ex_simmc;
-     ex_branch_addrtarget_next <= ex_branch_addrtargetc;
-     
+     id_pc_next <= id_pc2;   
   end
 end // always @ (posedge clk or `OR1200_RST_EVENT rst)
    
-//This is used for testing due the current split up in the execute phase
 always @(*) begin
-   //Executing second half of a stalled instruction as long as that instruction isn't a NOP
-   if (half_insn_done_next & ((ex_insn[31:26] != `OR1200_OR32_NOP) | !ex_insn[16])) begin
-      ex_branch_addrtarget <= ex_branch_addrtarget_next;
-      ex_simm <= ex_simm_next;
-      rf_addrw <= rf_addrw_next;
-      alu_op2 <= alu_op2_next;
-      comp_op <= comp_op_next;
-      ex_branch_op <= ex_branch_op_next;
-      dc_no_writethrough <= dc_no_writethrough_next;      
-      spr_read <= spr_read_next;
-      spr_write <= spr_write_next;
-      sig_syscall <= sig_syscall_next;
-      sig_trap <= sig_trap_next;
-      alu_op <= alu_op_next;      
-      rfwb_op <= rfwb_op_next;
-   end
-   else begin //Normal instruction
-      //These signals do not effect wb so don't care in case of NOP
-      ex_simm <= ex_simma;
-      rf_addrw <= rf_addrwa;
-      alu_op2 <= alu_op2a;
-      comp_op <= comp_opa;
-      //This is needed in case a NOP is inserted partway through the pipeline
-      if (ex_insn[31:26] != `OR1200_OR32_NOP) begin
-	 ex_branch_op <= ex_branch_opa;
-	 ex_branch_addrtarget <= ex_branch_addrtargeta;
-	 dc_no_writethrough <= dc_no_writethrougha;
-	 spr_read <= spr_reada;
-	 spr_write <= spr_writea;
-	 sig_syscall <= sig_syscalla;
-	 sig_trap <= sig_trapa;
-	 alu_op <= alu_opa;
-	 rfwb_op <= rfwb_opa; 
-      end 
-      else begin
-	 ex_branch_op <= `OR1200_BRANCHOP_NOP;
-	 dc_no_writethrough <= 1'b0;
-	 spr_read <= 1'b0;
-	 spr_write <= 1'b0;
-	 sig_syscall <= 1'b0;
-	 sig_trap <= 1'b0;
-	 alu_op <= `OR1200_ALUOP_NOP;
-	 rfwb_op <= `OR1200_RFWBOP_NOP;
-      end
+   //These signals do not effect wb so don't care in case of NOP
+   ex_simm <= ex_simma;
+   rf_addrw <= rf_addrwa;
+   alu_op2 <= alu_op2a;
+   comp_op <= comp_opa;
+   //This is needed in case a NOP is inserted partway through the pipeline
+   if (ex_insn[31:26] != `OR1200_OR32_NOP) begin
+      ex_branch_op <= ex_branch_opa;
+      ex_branch_addrtarget <= ex_branch_addrtargeta;
+      dc_no_writethrough <= dc_no_writethrougha;
+      spr_read <= spr_reada;
+      spr_write <= spr_writea;
+      sig_syscall <= sig_syscalla;
+      sig_trap <= sig_trapa;
+      alu_op <= alu_opa;
+      rfwb_op <= rfwb_opa; 
+   end 
+   else begin
+      ex_branch_op <= `OR1200_BRANCHOP_NOP;
+      dc_no_writethrough <= 1'b0;
+      spr_read <= 1'b0;
+      spr_write <= 1'b0;
+      sig_syscall <= 1'b0;
+      sig_trap <= 1'b0;
+      alu_op <= `OR1200_ALUOP_NOP;
+      rfwb_op <= `OR1200_RFWBOP_NOP;
    end
 end 
    
 always@(*) begin   
    //This is needed for the case that a NOP is inserted partway through the pipeline due to a stall
-   if (((ex_insn[63:58] != `OR1200_OR32_NOP) | !ex_insn[48]) & !half_insn_done) begin   
+   if (ex_insn[63:58] != `OR1200_OR32_NOP) begin   
       alu_opc_out <= alu_opc;
       rfwb_op2 <= rfwb_opc;
       ex_two_insns <= 1'b1;      
