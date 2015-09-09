@@ -169,6 +169,7 @@ output 					same_stage_dslot;
    wire [`OR1200_BRANCHOP_WIDTH-1:0] 		ex_branch_opc;
    wire [`OR1200_BRANCHOP_WIDTH-1:0] 		ex_branch_opa;
    wire [31:0] 				id_pc2;   
+   reg [31:0] 				id_pc_next;
    reg     				ex_two_insns_next;      
    wire [`OR1200_MACOP_WIDTH-1:0] 	mac_op;
    reg [`OR1200_MACOP_WIDTH-1:0] 	ex_mac_op;
@@ -410,7 +411,7 @@ always @(posedge clk or `OR1200_RST_EVENT rst) begin
 end
 
 //Any type of hazard or dependency stall will stall the pipeline    
-assign dependency_hazard_stall = (!no_more_dslot & (data_dependent | hazard_stall));
+assign dependency_hazard_stall = (!no_more_dslot & !half_insn_done & (data_dependent | hazard_stall));
    
 //data dependency check of two insns in the same stage of pipeline   
 always @(*) begin
@@ -445,18 +446,18 @@ end
    
 //structural hazard check for LSU, multiplication, fpu, insn that take longer than a cycle, illegal instructions, and system stalls
 always @(*) begin
-   if (half_insn_done) begin
+   /*if (half_insn_done) begin
       hazard_stall <= 1'b0;
-      id_lsu_op <= id_lsu_op_next;
-      id_mac_op <= id_mac_op_next;
-      id_macrc_op <= id_macrc_op_next;
-      fpu_op <= fpu_op_next;
-      wait_on <= wait_on_next;
-      multicycle <= multicycle_next;
-      id_illegal <= id_illegal_next;
+      id_lsu_op <= id_lsu_opa;
+      id_mac_op <= id_mac_opa;
+      id_macrc_op <= id_macrc_opa;
+      fpu_op <= fpu_opa;
+      wait_on <= wait_ona;
+      multicycle <= multicyclea;
+      id_illegal <= id_illegala;
       id_branch_op <= id_branch_op_next;
-   end   
-   else if (same_stage_dslot) begin
+   end*/   
+   if (same_stage_dslot) begin
       hazard_stall <= 1'b0;
       id_lsu_op <= `OR1200_LSUOP_NOP;
       id_mac_op <= `OR1200_MACOP_NOP;
@@ -475,7 +476,7 @@ always @(*) begin
       wait_on <= wait_ona;
       multicycle <= multicyclea;
       id_illegal <= id_illegala;
-      id_branch_op <= id_branch_opa;
+      id_branch_op <= half_insn_done ? id_branch_op_next : id_branch_opa;
       if ((id_lsu_opc != `OR1200_LSUOP_NOP) | (id_mac_opc != `OR1200_MACOP_NOP) | id_macrc_opc | (fpu_opc != {`OR1200_FPUOP_WIDTH{1'b0}}) | (wait_onc != `OR1200_WAIT_ON_NOTHING) | (multicyclec != `OR1200_ONE_CYCLE) | id_illegalc | du_hwbkpt | (id_insn[31:26] == `OR1200_OR32_XSYNC) | (id_insn[63:58] == `OR1200_OR32_XSYNC) | (id_branch_opc != `OR1200_BRANCHOP_NOP))
 	hazard_stall <= 1'b1;
       else
@@ -623,6 +624,7 @@ always @(posedge clk or `OR1200_RST_EVENT rst) begin
      id_macrc_op_next <= id_macrc_opc;	
      id_mac_op_next <= id_mac_opc;
      id_illegal_next <= id_illegalc;
+     id_pc_next <= id_pc2;
      sig_syscall_next <= sig_syscallc;
      dc_no_writethrough_next <= dc_no_writethroughc;
      rf_addrw_next <= rf_addrwc;
@@ -717,7 +719,7 @@ or1200_ctrl_id_decode or1200_ctrl_id_decode1(
 	.ex_freeze(ex_freeze),
 	.id_freeze(id_freeze),
 	.ex_flushpipe(ex_flushpipe),			     
-	.id_pc(id_pc),
+	.id_pc(half_insn_done ? id_pc_next : id_pc),
         .du_hwbkpt(du_hwbkpt),
 	.abort_mvspr(abort_mvspr),
 	.sel_imm(half_insn_done ? sel_imm_next : sel_imma), // executing stalled instruction so need to get the right immediate	     
