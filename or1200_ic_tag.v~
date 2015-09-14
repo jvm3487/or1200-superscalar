@@ -1,12 +1,12 @@
 //////////////////////////////////////////////////////////////////////
 ////                                                              ////
-////  OR1200's IC RAMs                                            ////
+////  OR1200's IC TAGs                                            ////
 ////                                                              ////
 ////  This file is part of the OpenRISC 1200 project              ////
 ////  http://www.opencores.org/cores/or1k/                        ////
 ////                                                              ////
 ////  Description                                                 ////
-////  Instantiation of Instruction cache data rams                ////
+////  Instatiation of instruction cache tag rams                  ////
 ////                                                              ////
 ////  To Do:                                                      ////
 ////   - make it smaller and faster                               ////
@@ -43,7 +43,7 @@
 //
 // CVS Revision History
 //
-// $Log: or1200_ic_ram.v,v $
+// $Log: or1200_ic_tag.v,v $
 // Revision 2.0  2010/06/30 11:00:00  ORSoC
 // Minor update: 
 // Coding style changed.
@@ -54,9 +54,9 @@
 // synopsys translate_on
 `include "or1200_defines.v"
 
-module or1200_ic_ram(
+module or1200_ic_tag(
 	// Clock and reset
-	clk, rst, 
+	clk, rst,
 
 `ifdef OR1200_BIST
 	// RAM BIST
@@ -64,22 +64,21 @@ module or1200_ic_ram(
 `endif
 
 	// Internal i/f
-	addr, en, we, datain, dataout
+	addr, sec_read_addr, en, we, datain, tag_v, tag
 );
 
-parameter dw = `OR1200_OPERAND_WIDTH;
-parameter aw = `OR1200_ICINDX;
+parameter dw = `OR1200_ICTAG_W;
+parameter aw = `OR1200_ICTAG;
 
 //
 // I/O
 //
-input 				clk;
+
+//
+// Clock and reset
+//
+input				clk;
 input				rst;
-input	[aw-1:0]		addr;
-input				en;
-input	[3:0]			we;
-input	[dw-1:0]		datain;
-output	[(dw*2)-1:0]		dataout; //modified to be twice as wide
 
 `ifdef OR1200_BIST
 //
@@ -90,27 +89,42 @@ input [`OR1200_MBIST_CTRL_WIDTH - 1:0] mbist_ctrl_i;
 output mbist_so_o;
 `endif
 
+//
+// Internal i/f
+//
+input	[aw-1:0]		addr;
+input	[aw-1:0]		sec_read_addr;   
+input				en;
+input				we;
+input	[dw-1:0]		datain;
+output	[1:0]			tag_v; //modified twice as much
+output	[(dw*2)-3:0]		tag; // modified twice as much
+
 `ifdef OR1200_NO_IC
 
 //
 // Insn cache not implemented
 //
-assign dataout = {dw{1'b0}};
+assign tag = {dw-1{1'b0}};
+assign tag_v = 1'b0;
 `ifdef OR1200_BIST
 assign mbist_so_o = mbist_si_i;
 `endif
 
 `else
 
+   assign tag[(dw*2)-3:(dw-1)] = 1'b0;
+   assign tag_v[1] = 1'b0;
+   
 //
-// Instantiation of IC RAM block
+// Instantiation of TAG RAM block
 //
-   or1200_spram_modified64 #
+   or1200_spram_tag64 #
      (
-      .aw(`OR1200_ICINDX),
-      .dw(128)
+      .aw(`OR1200_ICTAG),
+      .dw(`OR1200_ICTAG_W)
       )
-   ic_ram0
+   ic_tag0
      (
 `ifdef OR1200_BIST
       // RAM BIST
@@ -120,13 +134,13 @@ assign mbist_so_o = mbist_si_i;
 `endif
       .clk(clk),
       .ce(en),
-      .we(we[0]),
+      .we(we),
       //.oe(1'b1),
       .addr(addr),
+      //.addr_nin(sec_read_addr),
       .di(datain),
-      .doq(dataout)
+      .doq({tag[(dw-2):0], tag_v[0]}) 
       );   
 `endif
 
 endmodule
-

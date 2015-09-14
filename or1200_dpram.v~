@@ -1,16 +1,16 @@
 //////////////////////////////////////////////////////////////////////
 ////                                                              ////
-////  Generic Single-Port Synchronous RAM                         ////
+////  Generic Double-Port Synchronous RAM                         ////
 ////                                                              ////
 ////  This file is part of memory library available from          ////
 ////  http://www.opencores.org/cvsweb.shtml/generic_memories/     ////
 ////                                                              ////
 ////  Description                                                 ////
-////  This block is a wrapper with common single-port             ////
+////  This block is a wrapper with common double-port             ////
 ////  synchronous memory interface for different                  ////
 ////  types of ASIC and FPGA RAMs. Beside universal memory        ////
 ////  interface it also provides behavioral model of generic      ////
-////  single-port synchronous RAM.                                ////
+////  double-port synchronous RAM.                                ////
 ////  It should be used in all OPENCORES designs that want to be  ////
 ////  portable accross different target technologies and          ////
 ////  independent of target memory.                               ////
@@ -57,114 +57,117 @@
 // synopsys translate_on
 `include "or1200_defines.v"
 
-module or1200_spram_modified64
+module or1200_dpram
   (
-`ifdef OR1200_BIST
-   // RAM BIST
-   mbist_si_i, mbist_so_o, mbist_ctrl_i,
-`endif
-   // Generic synchronous single-port RAM interface
-   clk, ce, we, addr, di, doq
+   // Generic synchronous double-port RAM interface
+   clk, rst, ce_a, addr_a, do_a,
+   we_e, addr_e, di_e, addr_f, di_f, we_f
    );
    
    //
    // Default address and data buses width
    //
-   parameter aw = 10;
-   parameter dw = 128;
-   
-`ifdef OR1200_BIST
-   //
-   // RAM BIST
-   //
-   input mbist_si_i;
-   input [`OR1200_MBIST_CTRL_WIDTH - 1:0] mbist_ctrl_i;
-   output 				  mbist_so_o;
-`endif
+   parameter aw = 5;
+   parameter dw = 32;
    
    //
-   // Generic synchronous single-port RAM interface
+   // Generic synchronous double-port RAM interface
    //
-   input 				  clk;	// Clock
-   input 				  ce;	// Chip enable input
-   input 				  we;	// Write enable input
-   //input 				  oe;	// Output enable input
-   input [aw-1:0] 			  addr;	// address bus inputs
-   input [(dw/4)-1:0] 			  di;	// input data bus - modified to 31 because size in size is now different than data size
-   output [(dw/2)-1:0] 			  doq;	// output data bus - changed to dw from dw/2 after test
+   input			clk;	// Clock
+   input 			rst;
+   input			ce_a;	// Chip enable input
+   input [aw-1:0] 		addr_a;	// address bus inputs
+   output [dw-1:0] 		do_a;	// output data bus
+   input			ce_b;	// Chip enable input
+   input [aw-1:0] 		addr_b;	// address bus inputs
+   output [dw-1:0] 		do_b;	// output data bus
+   input			ce_c;	// Chip enable input
+   input [aw-1:0] 		addr_c;	// address bus inputs
+   output [dw-1:0] 		do_c;	// output data bus
+   input			ce_d;	// Chip enable input
+   input [aw-1:0] 		addr_d;	// address bus inputs
+   output [dw-1:0] 		do_d;	// output data bus
+   input			we_e;	// Write enable input
+   input [aw-1:0] 		addr_e;	// address bus inputs
+   input [dw-1:0] 		di_e;	// input data bus
+   input [aw-1:0] 		addr_f;
+   input [dw-1:0] 		di_f;
+   input 			we_f;
    
    //
    // Internal wires and registers
    //
-
+   
    //
-   // Generic single-port synchronous RAM model
+   // Generic double-port synchronous RAM model
    //
    
    //
    // Generic RAM's registers and wires
    //
-`ifdef OR1200_GENERIC   
-   reg [dw-1:0] 			  mem [(1<<(aw-2))-1:0] /*synthesis syn_ramstyle = "no_rw_check"*/; // modified because cache is twice as wide so one less bit to index
-`else
-   reg [dw-1:0] 			  mem [(1<<(aw-2))-1:0];
-`endif
-   reg [aw-1:0] 			  addr_reg;		// RAM address register
-   reg [(dw/2)-1:0] 			  doq_intermediate; //changed to dw from dw/2 after test
-   
+   reg [dw-1:0] 		mem [(1<<aw)-1:0] /*synthesis syn_ramstyle = "no_rw_check"*/;	// RAM content
+   reg [aw-1:0] 		addr_a_reg;		// RAM address registered
+   reg [aw-1:0] 		addr_b_reg;
+   reg [aw-1:0] 		addr_c_reg;   
+   reg [aw-1:0] 		addr_d_reg;
+
+   // Function to access GPRs (for use by Verilator). No need to hide this one
+   // from the simulator, since it has an input (as required by IEEE 1364-2001).
+   function [31:0] get_gpr;
+      // verilator public
+      input [aw-1:0] 		gpr_no;
+
+      get_gpr = mem[gpr_no];
+      
+   endfunction // get_gpr
+
+   function [31:0] set_gpr;
+      // verilator public
+      input [aw-1:0] 		gpr_no;
+      input [dw-1:0] 		value;
+      begin
+	 mem[gpr_no] = value;
+	 set_gpr = 0;
+      end
+   endfunction // get_gpr
    
    //
    // Data output drivers
    //
-   //assign doq = (oe) ? mem[addr_reg] : {dw{1'b0}};
+   assign do_a = mem[addr_a_reg];
+   assign do_b = mem[addr_b_reg];
+   assign do_c = mem[addr_c_reg];
+   assign do_d = mem[addr_d_reg];
    
-   // The following logic has been modified to make insn cache 64 bits wide
-   // It was then modified to make it 128 bits wide
-   assign doq = doq_intermediate; 
-   
-   
-   always @(*) begin
-      case ({addr_reg[1], addr_reg[0]})
-	{2'b00}:
-	  doq_intermediate <= mem[addr_reg[aw-1:2]][(dw/2)-1:0];
-	{2'b01}:
-	  doq_intermediate <= mem[addr_reg[aw-1:2]][((3*dw)/4)-1:dw/4];
-	{2'b10}:
-	  doq_intermediate <= mem[addr_reg[aw-1:2]][dw-1:dw/2];
-	{2'b11}: begin
-	   doq_intermediate[(dw/2)-1:dw/4] <= {`OR1200_OR32_NOP, 26'h141_0000};
-	   doq_intermediate[(dw/4)-1:0] <= mem[addr_reg[aw-1:2]][dw-1:(3*dw)/4];
-	end
-	
-      endcase // case ({addr_reg[1], addr_reg[0]})
+   //
+   // RAM read
+   //
+   always @(posedge clk or `OR1200_RST_EVENT rst) begin
+      if (rst == `OR1200_RST_VALUE) begin
+	 addr_a_reg <= {aw{1'b0}};
+      	 addr_b_reg <= {aw{1'b0}};
+	 addr_c_reg <= {aw{1'b0}};
+	 addr_d_reg <= {aw{1'b0}};
+      end
+      else begin
+	 if (ce_a) 
+	   addr_a_reg <= addr_a;
+	 if (ce_b)
+	   addr_b_reg <= addr_b;
+	 if (ce_c)
+	   addr_c_reg <= addr_c;
+	 if (ce_d)
+	   addr_d_reg <= addr_d;
+      end
    end
-   //
-   // RAM read address register
-   //
-   always @(posedge clk)
-     if (ce) begin
-       addr_reg <=  addr;
-     end 
    //
    // RAM write
    //
-   always @(posedge clk)
-     if (we && ce) begin
-	case({addr[1], addr[0]})
-	  {2'b00}: begin
-	     mem[addr[aw-1:2]][(dw/4)-1:0] <= di;
-	  end
-	  {2'b01}: begin
-	     mem[addr[aw-1:2]][(dw/2)-1:(dw/4)] <= di;
-	  end
-	  {2'b10}: begin
-	     mem[addr[aw-1:2]][((3*dw)/4)-1:dw/2] <= di;
-	  end
-	  {2'b11}: begin
-	     mem[addr[aw-1:2]][dw-1:((3*dw)/4)] <= di;
-	  end
-	  
-	endcase
-     end
-	
-endmodule // or1200_spram
+   always @(posedge clk) begin
+      if (we_f)
+	mem[addr_f] <= di_f;
+      if (we_e & (!we_f | (addr_f != addr_e))) //second part of logic is needed in case writing to same register
+	mem[addr_e] <=  di_e;
+   end   
+   
+endmodule // or1200_dpram

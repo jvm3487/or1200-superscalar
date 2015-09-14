@@ -1,12 +1,12 @@
 //////////////////////////////////////////////////////////////////////
 ////                                                              ////
-////  OR1200's IC TAGs                                            ////
+////  OR1200's register file read operands mux                    ////
 ////                                                              ////
 ////  This file is part of the OpenRISC 1200 project              ////
-////  http://www.opencores.org/cores/or1k/                        ////
+////  http://www.opencores.org/project,or1k                       ////
 ////                                                              ////
 ////  Description                                                 ////
-////  Instatiation of instruction cache tag rams                  ////
+////  Mux for two register file read operands.                    ////
 ////                                                              ////
 ////  To Do:                                                      ////
 ////   - make it smaller and faster                               ////
@@ -41,106 +41,133 @@
 ////                                                              ////
 //////////////////////////////////////////////////////////////////////
 //
-// CVS Revision History
-//
-// $Log: or1200_ic_tag.v,v $
+// $Log: or1200_operandmuxes.v,v $
 // Revision 2.0  2010/06/30 11:00:00  ORSoC
 // Minor update: 
-// Coding style changed.
-//
+// Bugs fixed. 
 
 // synopsys translate_off
 `include "timescale.v"
 // synopsys translate_on
 `include "or1200_defines.v"
 
-module or1200_ic_tag(
+module or1200_operandmuxes(
 	// Clock and reset
 	clk, rst,
 
-`ifdef OR1200_BIST
-	// RAM BIST
-	mbist_si_i, mbist_so_o, mbist_ctrl_i,
-`endif
-
 	// Internal i/f
-	addr, en, we, datain, tag_v, tag
+	id_freeze, ex_freeze, rf_dataa, rf_datab, /*ex_forw, ex_forw2, wb_forw, wb_forw2,*/	simm, sel_a, sel_b, operand_a, operand_b, muxed_a, muxed_b
 );
 
-parameter dw = `OR1200_ICTAG_W;
-parameter aw = `OR1200_ICTAG;
+parameter width = `OR1200_OPERAND_WIDTH;
 
 //
 // I/O
 //
-
-//
-// Clock and reset
-//
 input				clk;
 input				rst;
-
-`ifdef OR1200_BIST
-//
-// RAM BIST
-//
-input mbist_si_i;
-input [`OR1200_MBIST_CTRL_WIDTH - 1:0] mbist_ctrl_i;
-output mbist_so_o;
-`endif
-
-//
-// Internal i/f
-//
-input	[aw-1:0]		addr;
-//input	[aw-1:0]		sec_read_addr;   
-input				en;
-input				we;
-input	[dw-1:0]		datain;
-output	[1:0]			tag_v; //modified twice as much
-output	[(dw*2)-3:0]		tag; // modified twice as much
-
-`ifdef OR1200_NO_IC
-
-//
-// Insn cache not implemented
-//
-assign tag = {dw-1{1'b0}};
-assign tag_v = 1'b0;
-`ifdef OR1200_BIST
-assign mbist_so_o = mbist_si_i;
-`endif
-
-`else
-
-   assign tag[(dw*2)-3:(dw-1)] = 1'b0;
-   assign tag_v[1] = 1'b0;
+input				id_freeze;
+input				ex_freeze;
+input	[width-1:0]		rf_dataa;
+input	[width-1:0]		rf_datab;
+/*input	[width-1:0]		ex_forw;
+input	[width-1:0]		ex_forw2;   
+input	[width-1:0]		wb_forw;
+input	[width-1:0]		wb_forw2;   */
+input	[width-1:0]		simm;
+input	[`OR1200_SEL_WIDTH:0]	sel_a;
+input	[`OR1200_SEL_WIDTH:0]	sel_b;
+output	[width-1:0]		operand_a;
+output	[width-1:0]		operand_b;
+output	[width-1:0]		muxed_a;
+output	[width-1:0]		muxed_b;
    
 //
-// Instantiation of TAG RAM block
+// Internal wires and regs
 //
-   or1200_spram_tag64 #
-     (
-      .aw(`OR1200_ICTAG),
-      .dw(`OR1200_ICTAG_W)
-      )
-   ic_tag0
-     (
-`ifdef OR1200_BIST
-      // RAM BIST
-      .mbist_si_i(mbist_si_i),
-      .mbist_so_o(mbist_so_o),
-      .mbist_ctrl_i(mbist_ctrl_i),
+reg	[width-1:0]		operand_a;
+reg	[width-1:0]		operand_b;
+reg	[width-1:0]		muxed_a;
+reg	[width-1:0]		muxed_b;
+reg				saved_a;
+reg				saved_b;
+
+//
+// Operand A register
+//
+always @(posedge clk or `OR1200_RST_EVENT rst) begin
+	if (rst == `OR1200_RST_VALUE) begin
+		operand_a <=  32'd0;
+		saved_a <=  1'b0;
+	end else if (!ex_freeze && id_freeze && !saved_a) begin
+		operand_a <=  muxed_a;
+		saved_a <=  1'b1;
+	end else if (!ex_freeze && !saved_a) begin
+		operand_a <=  muxed_a;
+	end else if (!ex_freeze && !id_freeze)
+		saved_a <=  1'b0;
+end
+
+//
+// Operand B register
+//
+always @(posedge clk or `OR1200_RST_EVENT rst) begin
+	if (rst == `OR1200_RST_VALUE) begin
+		operand_b <=  32'd0;
+		saved_b <=  1'b0;
+	end else if (!ex_freeze && id_freeze && !saved_b) begin
+		operand_b <=  muxed_b;
+		saved_b <=  1'b1;
+	end else if (!ex_freeze && !saved_b) begin
+		operand_b <=  muxed_b;
+	end else if (!ex_freeze && !id_freeze)
+		saved_b <=  1'b0;
+end
+
+//
+// Forwarding logic for operand A register
+//
+always @(*/*ex_forw or ex_forw2 or wb_forw or wb_forw2 or rf_dataa or sel_a*/) begin
+/*`ifdef OR1200_ADDITIONAL_SYNOPSYS_DIRECTIVES
+	casez (sel_a)	// synopsys parallel_case infer_mux
+`else
+	casez (sel_a)	// synopsys parallel_case
 `endif
-      .clk(clk),
-      .ce(en),
-      .we(we),
-      //.oe(1'b1),
-      .addr(addr),
-      //.addr_nin(sec_read_addr),
-      .di(datain),
-      .doq({tag[(dw-2):0], tag_v[0]}) 
-      );   
+	  {1'b1, `OR1200_SEL_EX_FORW}:
+	    muxed_a = ex_forw2;
+	  {1'b0, `OR1200_SEL_EX_FORW}:
+	    muxed_a = ex_forw;
+	  {1'b1, `OR1200_SEL_WB_FORW}:
+	    muxed_a = wb_forw2;
+	  {1'b0, `OR1200_SEL_WB_FORW}:
+	    muxed_a = wb_forw;
+	  default:*/
+	    muxed_a = rf_dataa;
+	//endcase
+end
+
+//
+// Forwarding logic for operand B register
+//
+always @(*/*simm or ex_forw or ex_forw2 or wb_forw or wb_forw2 or rf_datab or sel_b*/) begin
+`ifdef OR1200_ADDITIONAL_SYNOPSYS_DIRECTIVES
+	casez (sel_b)	// synopsys parallel_case infer_mux
+`else
+	casez (sel_b)	// synopsys parallel_case
 `endif
+	  {1'b0, `OR1200_SEL_IMM}:
+	    muxed_b = simm;
+	  /*{1'b1, `OR1200_SEL_EX_FORW}:
+	    muxed_b = ex_forw2;
+	  {1'b0, `OR1200_SEL_EX_FORW}:
+	    muxed_b = ex_forw;
+	  {1'b1, `OR1200_SEL_WB_FORW}:
+	    muxed_b = wb_forw2;
+	  {1'b0, `OR1200_SEL_WB_FORW}:
+	    muxed_b = wb_forw;*/
+	  default:
+	    muxed_b = rf_datab;
+	endcase
+end
 
 endmodule

@@ -64,7 +64,7 @@ module or1200_spram_tag64
    mbist_si_i, mbist_so_o, mbist_ctrl_i,
 `endif
    // Generic synchronous single-port RAM interface
-   clk, ce, we, addr, addr_nin, di, doq
+   clk, ce, we, addr, /*addr_nin,*/ di, doq
    );
    
    //
@@ -90,9 +90,9 @@ module or1200_spram_tag64
    input 				  we;	// Write enable input
    //input 				  oe;	// Output enable input
    input [aw-1:0] 			  addr;	// address bus inputs
-   input [aw-1:0] 			  addr_nin; //address for the next instruction
+   //input [aw-1:0] 			  addr_nin; //address for the next instruction
    input [dw-1:0] 			  di;	// input data bus
-   output [(dw*2)-1:0] 			  doq;	// output data bus
+   output [dw-1:0] 			  doq;	// output data bus
    
    //
    // Internal wires and registers
@@ -111,13 +111,13 @@ module or1200_spram_tag64
    reg [dw-1:0] 			  mem [(1<<aw)-1:0];
 `endif
    reg [aw-1:0] 			  addr_reg;		// RAM address register
-   reg [aw-1:0] 			  addr_reg_nin;
+   //reg [aw-1:0] 			  addr_reg_nin;
    
    //
    // Data output drivers
    //
    //assign doq = (oe) ? mem[addr_reg] : {dw{1'b0}};
-   assign doq = {mem[addr_reg_nin], mem[addr_reg]};
+   assign doq = {/*mem[addr_reg_nin],*/ mem[addr_reg]};
    
    //
    // RAM read address register
@@ -125,7 +125,7 @@ module or1200_spram_tag64
    always @(posedge clk)
      if (ce) begin
 	addr_reg <=  addr;
-	addr_reg_nin <= addr_nin;
+	//addr_reg_nin <= addr_nin;
      end
    //
    // RAM write

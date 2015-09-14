@@ -250,7 +250,7 @@ always @(tag or saved_addr or tag_v or from_icram or from_icram_upper_intermedia
 	  end
 	  else begin
 	     tagcomp_miss = 1'b0;
-	     if (not_two_insn | (from_icram[(dw*2)-1:dw] == 32'b0)) //not_two_insn added to keep pipeline from running ahead of fetch
+	     if (not_two_insn) //not_two_insn added to keep pipeline from running ahead of fetch
 	       from_icram_upper_intermediate = {`OR1200_OR32_NOP, 26'h141_0000}; //nop added for two insns 141
 	     else
 	       from_icram_upper_intermediate = from_icram[(dw*2)-1:dw];

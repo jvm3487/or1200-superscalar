@@ -361,7 +361,7 @@ always @(posedge clk or `OR1200_RST_EVENT rst) begin
 		id_exceptflags <=  3'b000;
 	end
 	else if (!id_freeze) begin
-		id_pc <=  dependency_hazard_stall ? (id_pc + 32'h4) : if_pc;
+		id_pc <=  half_insn_done ? (id_pc + 32'h4) : if_pc;
         id_pc_val <=  1'b1 ;
 		id_exceptflags <=  dependency_hazard_stall ? 3'b0 : { sig_ibuserr, sig_itlbmiss, sig_immufault };
 	end

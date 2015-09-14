@@ -1,18 +1,22 @@
 //////////////////////////////////////////////////////////////////////
 ////                                                              ////
-////  OR1200's IC RAMs                                            ////
+////  Generic Single-Port Synchronous RAM                         ////
 ////                                                              ////
-////  This file is part of the OpenRISC 1200 project              ////
-////  http://www.opencores.org/cores/or1k/                        ////
+////  This file is part of memory library available from          ////
+////  http://www.opencores.org/cvsweb.shtml/generic_memories/     ////
 ////                                                              ////
 ////  Description                                                 ////
-////  Instantiation of Instruction cache data rams                ////
-////                                                              ////
-////  To Do:                                                      ////
-////   - make it smaller and faster                               ////
+////  This block is a wrapper with common single-port             ////
+////  synchronous memory interface for different                  ////
+////  types of ASIC and FPGA RAMs. Beside universal memory        ////
+////  interface it also provides behavioral model of generic      ////
+////  single-port synchronous RAM.                                ////
+////  It should be used in all OPENCORES designs that want to be  ////
+////  portable accross different target technologies and          ////
+////  independent of target memory.                               ////
 ////                                                              ////
 ////  Author(s):                                                  ////
-////      - Damjan Lampret, lampret@opencores.org                 ////
+////      - Michael Unneback, unneback@opencores.org              ////
 ////                                                              ////
 //////////////////////////////////////////////////////////////////////
 ////                                                              ////
@@ -43,10 +47,9 @@
 //
 // CVS Revision History
 //
-// $Log: or1200_ic_ram.v,v $
+// $Log: or1200_dpram_32x32.v,v $
 // Revision 2.0  2010/06/30 11:00:00  ORSoC
-// Minor update: 
-// Coding style changed.
+// New 
 //
 
 // synopsys translate_off
@@ -54,79 +57,81 @@
 // synopsys translate_on
 `include "or1200_defines.v"
 
-module or1200_ic_ram(
-	// Clock and reset
-	clk, rst, 
-
+module or1200_spram_tag64
+  (
 `ifdef OR1200_BIST
-	// RAM BIST
-	mbist_si_i, mbist_so_o, mbist_ctrl_i,
+   // RAM BIST
+   mbist_si_i, mbist_so_o, mbist_ctrl_i,
 `endif
-
-	// Internal i/f
-	addr, en, we, datain, dataout
-);
-
-parameter dw = `OR1200_OPERAND_WIDTH;
-parameter aw = `OR1200_ICINDX;
-
-//
-// I/O
-//
-input 				clk;
-input				rst;
-input	[aw-1:0]		addr;
-input				en;
-input	[3:0]			we;
-input	[dw-1:0]		datain;
-output	[(dw*2)-1:0]		dataout; //modified to be twice as wide
-
+   // Generic synchronous single-port RAM interface
+   clk, ce, we, addr, addr_nin, di, doq
+   );
+   
+   //
+   // Default address and data buses width
+   //
+   parameter aw = 10;
+   parameter dw = 32;
+   
 `ifdef OR1200_BIST
-//
-// RAM BIST
-//
-input mbist_si_i;
-input [`OR1200_MBIST_CTRL_WIDTH - 1:0] mbist_ctrl_i;
-output mbist_so_o;
+   //
+   // RAM BIST
+   //
+   input mbist_si_i;
+   input [`OR1200_MBIST_CTRL_WIDTH - 1:0] mbist_ctrl_i;
+   output 				  mbist_so_o;
 `endif
+   
+   //
+   // Generic synchronous single-port RAM interface
+   //
+   input 				  clk;	// Clock
+   input 				  ce;	// Chip enable input
+   input 				  we;	// Write enable input
+   //input 				  oe;	// Output enable input
+   input [aw-1:0] 			  addr;	// address bus inputs
+   //input [aw-1:0] 			  addr_nin; //address for the next instruction
+   input [dw-1:0] 			  di;	// input data bus
+   output [dw-1:0] 			  doq;	// output data bus
+   
+   //
+   // Internal wires and registers
+   //
 
-`ifdef OR1200_NO_IC
-
-//
-// Insn cache not implemented
-//
-assign dataout = {dw{1'b0}};
-`ifdef OR1200_BIST
-assign mbist_so_o = mbist_si_i;
-`endif
-
+   //
+   // Generic single-port synchronous RAM model
+   //
+   
+   //
+   // Generic RAM's registers and wires
+   //
+`ifdef OR1200_GENERIC   
+   reg [dw-1:0] 			  mem [(1<<aw)-1:0] /*synthesis syn_ramstyle = "no_rw_check"*/;
 `else
-
-//
-// Instantiation of IC RAM block
-//
-   or1200_spram_modified64 #
-     (
-      .aw(`OR1200_ICINDX),
-      .dw(128)
-      )
-   ic_ram0
-     (
-`ifdef OR1200_BIST
-      // RAM BIST
-      .mbist_si_i(mbist_si_i),
-      .mbist_so_o(mbist_so_o),
-      .mbist_ctrl_i(mbist_ctrl_i),
+   reg [dw-1:0] 			  mem [(1<<aw)-1:0];
 `endif
-      .clk(clk),
-      .ce(en),
-      .we(we[0]),
-      //.oe(1'b1),
-      .addr(addr),
-      .di(datain),
-      .doq(dataout)
-      );   
-`endif
-
-endmodule
-
+   reg [aw-1:0] 			  addr_reg;		// RAM address register
+   //reg [aw-1:0] 			  addr_reg_nin;
+   
+   //
+   // Data output drivers
+   //
+   //assign doq = (oe) ? mem[addr_reg] : {dw{1'b0}};
+   assign doq = {/*mem[addr_reg_nin],*/ mem[addr_reg]};
+   
+   //
+   // RAM read address register
+   //
+   always @(posedge clk)
+     if (ce) begin
+	addr_reg <=  addr;
+	//addr_reg_nin <= addr_nin;
+     end
+   //
+   // RAM write
+   //
+   always @(posedge clk)
+     if (we && ce)
+       mem[addr] <=  di;
+   
+endmodule // or1200_spram
