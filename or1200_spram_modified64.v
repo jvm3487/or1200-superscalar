@@ -132,7 +132,7 @@ module or1200_spram_modified64
 	{2'b10}:
 	  doq_intermediate <= mem[addr_reg[aw-1:2]][dw-1:dw/2];
 	{2'b11}: begin
-	   doq_intermediate[(dw/2)-1:dw/4] <= {`OR1200_OR32_NOP, 26'h141_0000};
+	   doq_intermediate[(dw/2)-1:dw/4] <= {32{1'b0}};
 	   doq_intermediate[(dw/4)-1:0] <= mem[addr_reg[aw-1:2]][dw-1:(3*dw)/4];
 	end
 	

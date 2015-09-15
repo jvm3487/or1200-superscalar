@@ -85,7 +85,7 @@ module or1200_cpu(
 
 	// SPR interface
 	supv, spr_addr, spr_dat_cpu, spr_dat_pic, spr_dat_tt, spr_dat_pm,
-	spr_dat_dmmu, spr_dat_immu, spr_dat_du, spr_cs, spr_we, mtspr_dc_done
+	spr_dat_dmmu, spr_dat_immu, spr_dat_du, spr_cs, spr_we, mtspr_dc_done, if_two_insns_ic
 );
 
 parameter dw = `OR1200_OPERAND_WIDTH;
@@ -200,6 +200,7 @@ output	[dw-1:0]		spr_dat_npc;
 output	[31:0]			spr_cs;
 output				spr_we;
 input   			mtspr_dc_done;
+input   			if_two_insns_ic;
    
 //
 // Interrupt exceptions
@@ -527,7 +528,9 @@ or1200_if or1200_if(
 	.except_immufault(except_immufault),
 	.except_ibuserr(except_ibuserr),
 	.dependency_hazard_stall(dependency_hazard_stall),
-	.same_stage_dslot(same_stage_dslot)
+	.same_stage_dslot(same_stage_dslot),
+	.if_two_insns_ic(if_two_insns_ic),
+	.if_two_insns(if_two_insns)
 );
 //
 // Instantiation of instruction decode/control logic
@@ -579,7 +582,7 @@ or1200_ctrl or1200_ctrl(
 	.ex_simm(ex_simm),
 	.ex_two_insns(ex_two_insns),
 	.ex_two_insns_next(ex_two_insns_next),
-        .if_two_insns(if_two_insns),
+        //.if_two_insns(if_two_insns),
         .dependency_hazard_stall(dependency_hazard_stall),
 	.abort_ex(abort_ex),
 	.sel_a(sel_a),
@@ -912,6 +915,8 @@ or1200_sprs or1200_sprs(
 or1200_lsu or1200_lsu(
 	.clk(clk),
 	.rst(rst),
+	.id_addrbase(muxed_a),
+	.id_addrofs(id_simma),
 	.ex_addrbase(operand_a),
 	.ex_addrofs(ex_simm),
 	.id_lsu_op(id_lsu_op),

@@ -64,7 +64,7 @@ module or1200_ctrl
    id_branch_op, ex_branch_op, ex_branch_taken, pc_we, 
    rf_addra, rf_addrb, rf_addrc, rf_addrd, rf_rda, rf_rdb, rf_rdc, rf_rdd, alu_op, alu_op2, alu_opc_out, alu_op2c, mac_op,
    comp_op, comp_opc, rf_addrw, rf_addrw2, rfwb_op, rfwb_op2, fpu_op,
-   wb_insn, id_simma, id_simmc, ex_simm, ex_two_insns, ex_two_insns_next, if_two_insns, dependency_hazard_stall, abort_ex, ex_branch_addrtarget, sel_a,
+   wb_insn, id_simma, id_simmc, ex_simm, ex_two_insns, ex_two_insns_next, /*if_two_insns,*/ dependency_hazard_stall, abort_ex, ex_branch_addrtarget, sel_a,
    sel_b, sel_c, sel_d, id_lsu_op,
    cust5_op, cust5_limm, cust5_opc, cust5_limmc, id_pc, du_hwbkpt, 
    multicycle, wait_on, wbforw_valid, wbforw_valid2, sig_syscall, sig_trap,
@@ -133,7 +133,7 @@ output  [31:0] 			        id_simmc;
 output	[31:0]				ex_simm;
 output  				ex_two_insns;
 output   				ex_two_insns_next;
-output  				if_two_insns;
+//output  				if_two_insns;
 output  				dependency_hazard_stall;	
 input    				abort_ex;
 input					wbforw_valid;
@@ -167,7 +167,7 @@ output 					same_stage_dslot;
    wire [`OR1200_BRANCHOP_WIDTH-1:0] 		ex_branch_opc;
    wire [`OR1200_BRANCHOP_WIDTH-1:0] 		ex_branch_opa;
    wire [31:0] 				id_pc2;   
-   reg [31:0] 				id_pc_next;
+   //reg [31:0] 				id_pc_next;
    reg     				ex_two_insns_next;      
    wire [`OR1200_MACOP_WIDTH-1:0] 	mac_op;
    reg [`OR1200_MACOP_WIDTH-1:0] 	ex_mac_op;
@@ -353,8 +353,8 @@ always @(posedge clk or `OR1200_RST_EVENT rst) begin
 	end
 end
    
-//This is used by genpc to get instruction after the next if two insns are fetched
-assign if_two_insns = (if_insn[63:58] != `OR1200_OR32_NOP | !if_insn[48]) ? 1'b1 : 1'b0;
+//This is used by genpc to get instruction after the next if two insns are fetched - moved to ic_top
+//assign if_two_insns = (if_insn[63:58] != `OR1200_OR32_NOP | !if_insn[48]) ? 1'b1 : 1'b0;
   
 //
 // Instruction latch in id_insn - modified to recieve two insns
@@ -573,7 +573,7 @@ always @(posedge clk or `OR1200_RST_EVENT rst) begin
      ex_two_insns_next <= ex_two_insns;
      sel_imm_next <= sel_immc;
      id_branch_op_next <= id_branch_opc;
-     id_pc_next <= id_pc2;   
+     //id_pc_next <= id_pc2;   
   end
 end // always @ (posedge clk or `OR1200_RST_EVENT rst)
    
@@ -635,7 +635,7 @@ or1200_ctrl_id_decode or1200_ctrl_id_decode1(
 	.ex_freeze(ex_freeze),
 	.id_freeze(id_freeze),
 	.ex_flushpipe(ex_flushpipe),			     
-	.id_pc(half_insn_done ? id_pc_next : id_pc),
+	.id_pc(/*half_insn_done ? id_pc_next :*/ id_pc),
         .du_hwbkpt(du_hwbkpt),
 	.abort_mvspr(abort_mvspr),
 	.sel_imm(half_insn_done ? sel_imm_next : sel_imma), // executing stalled instruction so need to get the right immediate	     

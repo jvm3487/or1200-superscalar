@@ -429,6 +429,8 @@ assign			mbist_so_o = mbist_dc_so;
 wire  [3:0] icqmem_sel_qmem;
 wire  [3:0] icqmem_tag_qmem;
 wire  [3:0] dcqmem_tag_qmem;
+wire     if_two_insns;
+   
 
 //
 // Instantiation of Instruction WISHBONE BIU
@@ -610,7 +612,8 @@ or1200_ic_top or1200_ic_top(
 	.icbiu_cab_o(icbiu_cab_ic),
 	.icbiu_dat_i(icbiu_dat_biu),
 	.icbiu_ack_i(icbiu_ack_biu),
-	.icbiu_err_i(icbiu_err_biu)
+	.icbiu_err_i(icbiu_err_biu),
+	.if_two_insns(if_two_insns)
 );
 
 //
@@ -710,7 +713,8 @@ or1200_cpu(
 	.spr_dat_npc(spr_dat_npc),
 	.spr_cs(spr_cs),
 	.spr_we(spr_we),
-        .mtspr_dc_done(mtspr_dc_done)
+        .mtspr_dc_done(mtspr_dc_done),
+	.if_two_insns_ic(if_two_insns)
 );
 
 //

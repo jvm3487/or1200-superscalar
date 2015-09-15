@@ -61,7 +61,7 @@ module or1200_if(
 	// Internal i/f
 	if_freeze, if_insn, if_pc, if_flushpipe, saving_if_insn, 
 	if_stall, no_more_dslot, genpc_refetch, rfe,
-	except_itlbmiss, except_immufault, except_ibuserr, dependency_hazard_stall, same_stage_dslot
+	except_itlbmiss, except_immufault, except_ibuserr, dependency_hazard_stall, same_stage_dslot, if_two_insns, if_two_insns_ic
 );
 
 //
@@ -98,8 +98,10 @@ input				rfe;
 output				except_itlbmiss;
 output				except_immufault;
 output				except_ibuserr;
+output  			if_two_insns;   
 input 	                	dependency_hazard_stall;
 input   			same_stage_dslot;
+input 	         		if_two_insns_ic;
 			
  
 //
@@ -112,6 +114,8 @@ reg	[63:0]		insn_saved; //modified for two insns
 reg	[31:0]		addr_saved;
 reg	[2:0]		err_saved;
 reg			saved;
+reg 			if_two_insns_saved;
+   
 	
 assign save_insn = (icpu_ack_i | icpu_err_i) & if_freeze & !saved; 
 assign saving_if_insn = !if_flushpipe & save_insn;
@@ -132,6 +136,8 @@ always @(posedge clk or `OR1200_RST_EVENT rst)
 assign if_insn = no_more_dslot | rfe | if_bypass ? {2{`OR1200_OR32_NOP, 26'h041_0000}} : saved ? insn_saved : icpu_ack_i ? icpu_dat_i : {2{`OR1200_OR32_NOP, 26'h061_0000}}; //161 is used for exceptions 
 //The following has been modified to take into account the possibility of two insns
 assign if_pc = dependency_hazard_stall ? {icpu_adr_i[31:2], 2'h0} : saved ? addr_saved : {icpu_adr_i[31:2], 2'h0};
+assign if_two_insns = saved? if_two_insns_saved : if_two_insns_ic;
+   
 //it appears if_stall seems to almost mirror if_freeze
 //primary difference is that if if_freeze is high and an instruction is being saved, than if_stall will be low
 //if_freeze is defined in the freeze.v file
@@ -182,6 +188,21 @@ always @(posedge clk or `OR1200_RST_EVENT rst)
 		addr_saved <=  {icpu_adr_i[31:2], 2'b00}; 
 	else if (!if_freeze)
 		addr_saved <=  {icpu_adr_i[31:2], 2'b00};
+
+
+//
+// Store fetched number of instructions
+//
+always @(posedge clk or `OR1200_RST_EVENT rst)
+	if (rst == `OR1200_RST_VALUE)
+		if_two_insns_saved <=  1'b0;
+	else if (if_flushpipe)
+		if_two_insns_saved <=  1'b0;
+	else if (save_insn)
+		if_two_insns_saved <=  if_two_insns_ic; 
+	else if (!if_freeze)
+		if_two_insns_saved <=  if_two_insns_ic;
+
    
 //
 // Store fetched instruction's error tags 
