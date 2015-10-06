@@ -167,7 +167,7 @@ output 					same_stage_dslot;
    wire [`OR1200_BRANCHOP_WIDTH-1:0] 		ex_branch_opc;
    wire [`OR1200_BRANCHOP_WIDTH-1:0] 		ex_branch_opa;
    wire [31:0] 				id_pc2;   
-   //reg [31:0] 				id_pc_next;
+   reg [31:0] 				id_pc_next;
    reg     				ex_two_insns_next;      
    wire [`OR1200_MACOP_WIDTH-1:0] 	mac_op;
    reg [`OR1200_MACOP_WIDTH-1:0] 	ex_mac_op;
@@ -278,7 +278,7 @@ output 					same_stage_dslot;
 assign force_dslot_fetch = 1'b0;
 //one more instruction after branch must be executed - determines if it is the instruction in the same stage or the previous stage
 assign same_stage_dslot = (|ex_branch_op & ex_branch_taken & ((ex_insn[63:58] != `OR1200_OR32_NOP) | !ex_insn[48])); 
-assign previous_stage_dslot = (|ex_branch_op & !id_void & ex_branch_taken);
+assign previous_stage_dslot = (|ex_branch_op & !id_voida & ex_branch_taken);
 		     
 assign no_more_dslot = same_stage_dslot | previous_stage_dslot |
 		       (ex_branch_op == `OR1200_BRANCHOP_RFE);
@@ -522,6 +522,8 @@ always @(posedge clk or `OR1200_RST_EVENT rst) begin
 		ex_mac_op <=  id_mac_op;
 end
 
+// commented out section should be unnecessary because abort_ex is already checked when instruction is read into ex_insn latch
+// abort_mvspr is a subset of abort_ex
 assign mac_op = abort_mvspr ? `OR1200_MACOP_NOP : ex_mac_op;
    
 `else // !`ifdef OR1200_MAC_IMPLEMENTED
@@ -573,7 +575,7 @@ always @(posedge clk or `OR1200_RST_EVENT rst) begin
      ex_two_insns_next <= ex_two_insns;
      sel_imm_next <= sel_immc;
      id_branch_op_next <= id_branch_opc;
-     //id_pc_next <= id_pc2;   
+     id_pc_next <= id_pc2;   
   end
 end // always @ (posedge clk or `OR1200_RST_EVENT rst)
    
@@ -635,7 +637,7 @@ or1200_ctrl_id_decode or1200_ctrl_id_decode1(
 	.ex_freeze(ex_freeze),
 	.id_freeze(id_freeze),
 	.ex_flushpipe(ex_flushpipe),			     
-	.id_pc(/*half_insn_done ? id_pc_next :*/ id_pc),
+	.id_pc(half_insn_done ? id_pc_next : id_pc),
         .du_hwbkpt(du_hwbkpt),
 	.abort_mvspr(abort_mvspr),
 	.sel_imm(half_insn_done ? sel_imm_next : sel_imma), // executing stalled instruction so need to get the right immediate	     

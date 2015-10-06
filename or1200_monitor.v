@@ -169,60 +169,62 @@ module or1200_monitor;
  `ifdef OR1200_MONITOR_LOOKUP
 	 $fdisplay(flookup, "Instruction %d: %t", insns, $time);
  `endif
-	 if(exception)
-	   $fwrite(fexe, "\nEXECUTED(%d): %h:  %h  (exception)", insns,
-		   `OR1200_TOP.`CPU_cpu.`CPU_except.ex_pc,
-		   `OR1200_TOP.`CPU_cpu.`CPU_ctrl.ex_insn[31:0]);
-	 else
-	   $fwrite(fexe, "\nEXECUTED(%d): %h:  %h", insns,
-		   `OR1200_TOP.`CPU_cpu.`CPU_except.wb_pc,
-		   `OR1200_TOP.`CPU_cpu.`CPU_ctrl.wb_insn);
- `ifdef OR1200_MONITOR_EXEC_LOG_DISASSEMBLY
-	 if(!exception) begin
-	    $fwrite(fexe,"\t");
-	    // Decode the instruction, print it out
-	    or1200_print_op(`OR1200_TOP.`CPU_cpu.`CPU_ctrl.wb_insn);
-	 end
- `endif
-	 for(i = 0; i < 32; i = i + 1) begin
-	    if (i % 4 == 0)
-	      $fdisplay(fexe);
-	    if ((`OR1200_TOP.`CPU_cpu.`CPU_ctrl.wb_insn_intermediate[31:26] != `OR1200_OR32_NOP) | (`OR1200_TOP.`CPU_cpu.`CPU_ctrl.wb_insn_intermediate[16] == 1'b0))
-	      get_gpr2(i, r);
+	 if ((`OR1200_TOP.`CPU_cpu.`CPU_ctrl.wb_insn[31:26] != `OR1200_OR32_NOP) | (`OR1200_TOP.`CPU_cpu.`CPU_ctrl.wb_insn[16]== 1'b0)) begin
+	    if(exception)
+	      $fwrite(fexe, "\nEXECUTED(%d): %h:  %h  (exception)", insns,
+		      `OR1200_TOP.`CPU_cpu.`CPU_except.ex_pc,
+		      `OR1200_TOP.`CPU_cpu.`CPU_ctrl.ex_insn[31:0]);
 	    else
-	      get_gpr(i, r);
-	    $fwrite(fexe, "GPR%d: %h  ", i, r);
-	 end
-	 if ((`OR1200_TOP.`CPU_cpu.`CPU_ctrl.wb_insn_intermediate[31:26] != `OR1200_OR32_NOP) | (`OR1200_TOP.`CPU_cpu.`CPU_ctrl.wb_insn_intermediate[16]== 1'b0)) begin
-	    $fdisplay(fexe);
-	    r = {`OR1200_TOP.`CPU_cpu.`CPU_sprs.sr[16:12], `OR1200_TOP.`CPU_cpu.over1_next, `OR1200_TOP.`CPU_cpu.carry1_next, `OR1200_TOP.`CPU_cpu.flag1_next, `OR1200_TOP.`CPU_cpu.`CPU_sprs.sr[8:0]};
-	    $fwrite(fexe, "SR   : %h  ", r);
-	    r = `OR1200_TOP.`CPU_cpu.`CPU_sprs.epcr;
-	    $fwrite(fexe, "EPCR0: %h  ", r);
-	    r = `OR1200_TOP.`CPU_cpu.`CPU_sprs.eear;
-	    $fwrite(fexe, "EEAR0: %h  ", r);
-	    r = `OR1200_TOP.`CPU_cpu.`CPU_sprs.esr;
-	    $fdisplay(fexe, "ESR0 : %h", r);
-	 end // if (`OR1200_TOP.`CPU_cpu.`CPU_ctrl.wb_insn_intermediate[31:26] != `OR1200_OR32_NOP)
-	 else begin
-	    $fdisplay(fexe);
-	    r = `OR1200_TOP.`CPU_cpu.`CPU_sprs.sr;
-	    $fwrite(fexe, "SR   : %h  ", r);
-	    r = `OR1200_TOP.`CPU_cpu.`CPU_sprs.epcr;
-	    $fwrite(fexe, "EPCR0: %h  ", r);
-	    r = `OR1200_TOP.`CPU_cpu.`CPU_sprs.eear;
-	    $fwrite(fexe, "EEAR0: %h  ", r);
-	    r = `OR1200_TOP.`CPU_cpu.`CPU_sprs.esr;
-	    $fdisplay(fexe, "ESR0 : %h", r);
-	 end
+	      $fwrite(fexe, "\nEXECUTED(%d): %h:  %h", insns,
+		      `OR1200_TOP.`CPU_cpu.`CPU_except.wb_pc,
+		      `OR1200_TOP.`CPU_cpu.`CPU_ctrl.wb_insn);
+ `ifdef OR1200_MONITOR_EXEC_LOG_DISASSEMBLY
+	    if(!exception) begin
+	       $fwrite(fexe,"\t");
+	       // Decode the instruction, print it out
+	       or1200_print_op(`OR1200_TOP.`CPU_cpu.`CPU_ctrl.wb_insn);
+	    end
+ `endif
+	    for(i = 0; i < 32; i = i + 1) begin
+	       if (i % 4 == 0)
+		 $fdisplay(fexe);
+	       if ((`OR1200_TOP.`CPU_cpu.`CPU_ctrl.wb_insn_intermediate[31:26] != `OR1200_OR32_NOP) | (`OR1200_TOP.`CPU_cpu.`CPU_ctrl.wb_insn_intermediate[16] == 1'b0))
+		 get_gpr2(i, r);
+	       else
+		 get_gpr(i, r);
+	       $fwrite(fexe, "GPR%d: %h  ", i, r);
+	    end
+	    if ((`OR1200_TOP.`CPU_cpu.`CPU_ctrl.wb_insn_intermediate[31:26] != `OR1200_OR32_NOP) | (`OR1200_TOP.`CPU_cpu.`CPU_ctrl.wb_insn_intermediate[16]== 1'b0)) begin
+	       $fdisplay(fexe);
+	       r = {`OR1200_TOP.`CPU_cpu.`CPU_sprs.sr[16:12], `OR1200_TOP.`CPU_cpu.over1_next, `OR1200_TOP.`CPU_cpu.carry1_next, `OR1200_TOP.`CPU_cpu.flag1_next, `OR1200_TOP.`CPU_cpu.`CPU_sprs.sr[8:0]};
+	       $fwrite(fexe, "SR   : %h  ", r);
+	       r = `OR1200_TOP.`CPU_cpu.`CPU_sprs.epcr;
+	       $fwrite(fexe, "EPCR0: %h  ", r);
+	       r = `OR1200_TOP.`CPU_cpu.`CPU_sprs.eear;
+	       $fwrite(fexe, "EEAR0: %h  ", r);
+	       r = `OR1200_TOP.`CPU_cpu.`CPU_sprs.esr;
+	       $fdisplay(fexe, "ESR0 : %h", r);
+	    end // if (`OR1200_TOP.`CPU_cpu.`CPU_ctrl.wb_insn_intermediate[31:26] != `OR1200_OR32_NOP)
+	    else begin
+	       $fdisplay(fexe);
+	       r = `OR1200_TOP.`CPU_cpu.`CPU_sprs.sr;
+	       $fwrite(fexe, "SR   : %h  ", r);
+	       r = `OR1200_TOP.`CPU_cpu.`CPU_sprs.epcr;
+	       $fwrite(fexe, "EPCR0: %h  ", r);
+	       r = `OR1200_TOP.`CPU_cpu.`CPU_sprs.eear;
+	       $fwrite(fexe, "EEAR0: %h  ", r);
+	       r = `OR1200_TOP.`CPU_cpu.`CPU_sprs.esr;
+	       $fdisplay(fexe, "ESR0 : %h", r);
+	    end
 `endif //  `ifdef OR1200_MONITOR_EXEC_STATE
-	 insns = insns + 1;
+	    insns = insns + 1;
+	 end
 	 if ((`OR1200_TOP.`CPU_cpu.`CPU_ctrl.wb_insn_intermediate[31:26] != `OR1200_OR32_NOP) | (`OR1200_TOP.`CPU_cpu.`CPU_ctrl.wb_insn_intermediate[16]== 1'b0)) begin  
-	 /*if(exception)
-	   $fwrite(fexe, "\nEXECUTED(%d): %h:  %h  (exception)", insns,
-		   `OR1200_TOP.`CPU_cpu.`CPU_except.ex_pc,
-		   `OR1200_TOP.`CPU_cpu.`CPU_ctrl.ex_insn);
-	 else*/
+	    /*if(exception)
+	     $fwrite(fexe, "\nEXECUTED(%d): %h:  %h  (exception)", insns,
+	     `OR1200_TOP.`CPU_cpu.`CPU_except.ex_pc,
+	     `OR1200_TOP.`CPU_cpu.`CPU_ctrl.ex_insn);
+	     else*/
 	    $fwrite(fexe, "\nEXECUTED(%d): %h:  %h", insns,
 		    `OR1200_TOP.`CPU_cpu.`CPU_except.wb_pc2,
 		    `OR1200_TOP.`CPU_cpu.`CPU_ctrl.wb_insn_intermediate);
@@ -401,8 +403,8 @@ module or1200_monitor;
    always @(posedge `CPU_CORE_CLK)
      if (!`OR1200_TOP.`CPU_cpu.`CPU_ctrl.wb_freeze) begin
 	//	#2;
-	if (((`OR1200_TOP.`CPU_cpu.`CPU_ctrl.wb_insn[31:26] != `OR1200_OR32_NOP)
-	     | !`OR1200_TOP.`CPU_cpu.`CPU_ctrl.wb_insn[16])
+	if ((((`OR1200_TOP.`CPU_cpu.`CPU_ctrl.wb_insn[31:26] != `OR1200_OR32_NOP)
+	     | !`OR1200_TOP.`CPU_cpu.`CPU_ctrl.wb_insn[16]) | (`OR1200_TOP.`CPU_cpu.`CPU_ctrl.wb_insn_intermediate[31:26] != `OR1200_OR32_NOP | !`OR1200_TOP.`CPU_cpu.`CPU_ctrl.wb_insn_intermediate[16]))
 	    & !(`OR1200_TOP.`CPU_cpu.`CPU_except.except_flushpipe &
 		`OR1200_TOP.`CPU_cpu.`CPU_except.ex_dslot))
 	  begin
