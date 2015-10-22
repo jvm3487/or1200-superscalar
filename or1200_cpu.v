@@ -261,9 +261,9 @@ wire	[dw-1:0]		muxed_b;
 wire	[dw-1:0]		muxed_c;
 wire	[dw-1:0]		muxed_d;
 wire	[dw-1:0]		wb_forw;
-wire	[dw-1:0]		wb_forwc;
+reg	[dw-1:0]		wb_forwc;
 wire				wbforw_valid;
-wire				wbforw_validc;
+reg				wbforw_validc;
 wire	[dw-1:0]		operand_a;
 wire	[dw-1:0]		operand_b;
 wire	[dw-1:0]		operand_a_inter;
@@ -294,7 +294,7 @@ wire				wb_flushpipe;
 wire				extend_flush;
 wire				ex_branch_taken;
 wire				flag;
-wire     			flagc;		
+//wire     			flagc;		
 wire				flagforw;
 wire				flag_we;
 wire				flagforw_alu;   
@@ -304,7 +304,7 @@ wire				flag_we_aluc;
 wire				flagforw_fpu;
 wire				flag_we_fpu;
 wire				carry;
-wire				carryc;
+//wire				carryc;
 wire				cyforw;
 wire				cy_we_alu;
 wire				cyforwa;
@@ -750,8 +750,8 @@ assign cyforw = cy_we_aluc ? cyforwc : cyforwa;
 assign cy_we_alu = cy_we_alua | cy_we_aluc;   
    
 //This is needed from the previous instruction   
-assign flagc = flag_we_alu ? flagforw_alu : flag;
-assign carryc = cy_we_alua ? cyforw : carry;  
+//assign flagc = flag_we_alu ? flagforw_alu : flag;
+//assign carryc = cy_we_alua ? cyforw : carry;  
    
 //Used for or1200-monitor
    assign flag1 = (flag_we_alu & flagforw_alu) | (flagforw_fpu & flag_we_fpu);
@@ -778,15 +778,15 @@ or1200_alu or1200_alu2(
  	.comp_op(comp_opc),
 	.cust5_op(cust5_opc),
 	.cust5_limm(cust5_limmc),
-	.result(alu_dataoutc),
+	.result(/*alu_dataoutc*/ rf_datawc),
 	.flagforw(flagforw_aluc),
 	.flag_we(flag_we_aluc),
 	.cyforw(cyforwc),
 	.cy_we(cy_we_aluc),
 	.ovforw(ovforwc),
-	.ov_we(ov_we_aluc),		      
-	.flag(flagc),
-	.carry(carryc)
+	.ov_we(ov_we_aluc)
+	//.flag(1'b0), `OR1200_ALUOP_CMOV should stall pipeline
+	//.carry(1'b0) `OR1200_ALUOP_ADDC should stall pipeline
 );
 
    
@@ -964,7 +964,19 @@ or1200_wbmux or1200_wbmux(
 	.muxreg_valid(wbforw_valid)
 );
 
-or1200_wbmux or1200_wbmux2(
+// Do not really need a 2nd write-back mux since only one possible input
+always @(posedge clk or `OR1200_RST_EVENT rst) begin
+	if (rst == `OR1200_RST_VALUE) begin
+	   wb_forwc <=  32'd0;
+	   wbforw_validc <=  1'b0;
+	end
+	else if (!wb_freeze) begin
+	   wb_forwc <=  rf_datawc;
+	   wbforw_validc <=  rfwb_opc[0];
+	end
+end
+   
+/*or1200_wbmux or1200_wbmux2(
 	.clk(clk),
 	.rst(rst),
 	.wb_freeze(wb_freeze),
@@ -977,7 +989,7 @@ or1200_wbmux or1200_wbmux2(
 	.muxout(rf_datawc),
 	.muxreg(wb_forwc),
 	.muxreg_valid(wbforw_validc)
-);   
+);*/   
 //
 // Instantiation of freeze logic
 //
