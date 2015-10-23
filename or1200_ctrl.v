@@ -369,7 +369,10 @@ always @(posedge clk or `OR1200_RST_EVENT rst) begin
 	else if (!id_freeze & dependency_hazard_stall) begin
 	   // Just do the 2nd instruction because there's a stall
 	   id_insn[63:32] <= {`OR1200_OR32_NOP, 26'h141_0000};
-	   id_insn[31:0] <= id_insn[63:32];
+	   if (id_insn[31:26] != `OR1200_OR32_RFE)
+	     id_insn[31:0] <= id_insn[63:32];
+	   else
+	     id_insn[31:0] <= {`OR1200_OR32_NOP, 26'h141_0000};
 	end
 	else if (!id_freeze) begin
 	   id_insn[31:0] <= if_insn[31:0];
@@ -445,7 +448,7 @@ always @(*) begin
       id_illegal <= id_illegala;
       id_branch_op <= half_insn_done ? id_branch_op_next : id_branch_opa;
       // do not stall for rfe in the first stage but otherwise stall for structural hazard or 2nd stage ALU instructions that require a carry or flag
-      if ((id_insn[32:26] != `OR1200_OR32_RFE) & ((id_lsu_opc != `OR1200_LSUOP_NOP) | (id_mac_opc != `OR1200_MACOP_NOP) | id_macrc_opc | (fpu_opc != {`OR1200_FPUOP_WIDTH{1'b0}}) | (wait_onc != `OR1200_WAIT_ON_NOTHING) | (multicyclec != `OR1200_ONE_CYCLE) | id_illegalc | du_hwbkpt | (id_insn[31:26] == `OR1200_OR32_XSYNC) | (id_insn[63:58] == `OR1200_OR32_XSYNC) | (id_branch_opc != `OR1200_BRANCHOP_NOP) | (id_insn[63:58] == `OR1200_OR32_ADDIC) | ((id_insn[63:58] == `OR1200_OR32_ALU) & ({1'b0, id_insn[35:32]} == `OR1200_ALUOP_CMOV))))
+      if ((id_lsu_opc != `OR1200_LSUOP_NOP) | (id_mac_opc != `OR1200_MACOP_NOP) | id_macrc_opc | (fpu_opc != {`OR1200_FPUOP_WIDTH{1'b0}}) | (wait_onc != `OR1200_WAIT_ON_NOTHING) | (multicyclec != `OR1200_ONE_CYCLE) | id_illegalc | du_hwbkpt | (id_insn[31:26] == `OR1200_OR32_XSYNC) | (id_insn[63:58] == `OR1200_OR32_XSYNC) | (id_branch_opc != `OR1200_BRANCHOP_NOP) | (id_insn[63:58] == `OR1200_OR32_ADDIC) | ((id_insn[63:58] == `OR1200_OR32_ALU) & ({1'b0, id_insn[35:32]} == `OR1200_ALUOP_CMOV)))
 	hazard_stall <= 1'b1;
       else
 	hazard_stall <= 1'b0;
