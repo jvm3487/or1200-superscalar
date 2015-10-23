@@ -309,7 +309,7 @@ assign cust5_limmc = ex_insn[42:37];
 //
 //
 // ensures that a return from exception clears the pipeline while still allowing the rfe instruction to enter the id stage in case of a data dependency stall
-assign rfe = (((id_branch_opa == `OR1200_BRANCHOP_RFE) |  (id_branch_opc == `OR1200_BRANCHOP_RFE)) & !half_insn_done) | (ex_branch_opc == `OR1200_BRANCHOP_RFE) | (ex_branch_op == `OR1200_BRANCHOP_RFE);
+assign rfe = (id_branch_op == `OR1200_BRANCHOP_RFE) | (ex_branch_op == `OR1200_BRANCHOP_RFE);
 
 //As far as I can tell, this is only needed for a certain simulator, so I did not modify it   
 `ifdef verilator
@@ -444,7 +444,8 @@ always @(*) begin
       multicycle <= multicyclea;
       id_illegal <= id_illegala;
       id_branch_op <= half_insn_done ? id_branch_op_next : id_branch_opa;
-      if ((id_lsu_opc != `OR1200_LSUOP_NOP) | (id_mac_opc != `OR1200_MACOP_NOP) | id_macrc_opc | (fpu_opc != {`OR1200_FPUOP_WIDTH{1'b0}}) | (wait_onc != `OR1200_WAIT_ON_NOTHING) | (multicyclec != `OR1200_ONE_CYCLE) | id_illegalc | du_hwbkpt | (id_insn[31:26] == `OR1200_OR32_XSYNC) | (id_insn[63:58] == `OR1200_OR32_XSYNC) | (id_branch_opc != `OR1200_BRANCHOP_NOP) | (id_insn[63:58] == `OR1200_OR32_ADDIC) | (id_insn[63:58] == `OR1200_OR32_ALU && {1'b0, id_insn[3:0]} == `OR1200_ALUOP_CMOV))
+      // do not stall for rfe in the first stage but otherwise stall for structural hazard or 2nd stage ALU instructions that require a carry or flag
+      if ((id_insn[32:26] != `OR1200_OR32_RFE) & ((id_lsu_opc != `OR1200_LSUOP_NOP) | (id_mac_opc != `OR1200_MACOP_NOP) | id_macrc_opc | (fpu_opc != {`OR1200_FPUOP_WIDTH{1'b0}}) | (wait_onc != `OR1200_WAIT_ON_NOTHING) | (multicyclec != `OR1200_ONE_CYCLE) | id_illegalc | du_hwbkpt | (id_insn[31:26] == `OR1200_OR32_XSYNC) | (id_insn[63:58] == `OR1200_OR32_XSYNC) | (id_branch_opc != `OR1200_BRANCHOP_NOP) | (id_insn[63:58] == `OR1200_OR32_ADDIC) | ((id_insn[63:58] == `OR1200_OR32_ALU) & ({1'b0, id_insn[35:32]} == `OR1200_ALUOP_CMOV))))
 	hazard_stall <= 1'b1;
       else
 	hazard_stall <= 1'b0;
