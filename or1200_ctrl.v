@@ -369,10 +369,7 @@ always @(posedge clk or `OR1200_RST_EVENT rst) begin
 	else if (!id_freeze & dependency_hazard_stall) begin
 	   // Just do the 2nd instruction because there's a stall
 	   id_insn[63:32] <= {`OR1200_OR32_NOP, 26'h141_0000};
-	   if (id_insn[31:26] != `OR1200_OR32_RFE)
-	     id_insn[31:0] <= id_insn[63:32];
-	   else
-	     id_insn[31:0] <= {`OR1200_OR32_NOP, 26'h141_0000};
+	   id_insn[31:0] <= id_insn[63:32];
 	end
 	else if (!id_freeze) begin
 	   id_insn[31:0] <= if_insn[31:0];
@@ -392,7 +389,7 @@ always @(posedge clk or `OR1200_RST_EVENT rst) begin
 end
 
 //Any type of hazard or dependency stall will stall the pipeline    
-assign dependency_hazard_stall = (!no_more_dslot & !half_insn_done & (data_dependent | hazard_stall));
+assign dependency_hazard_stall = (!no_more_dslot & !half_insn_done & (id_insn[31:26] != `OR1200_OR32_RFE) & (data_dependent | hazard_stall));
    
 //data dependency check of two insns in the same stage of pipeline   
 always @(*) begin
