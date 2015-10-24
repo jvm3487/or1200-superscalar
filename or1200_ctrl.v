@@ -389,7 +389,7 @@ always @(posedge clk or `OR1200_RST_EVENT rst) begin
 end
 
 //Any type of hazard or dependency stall will stall the pipeline    
-assign dependency_hazard_stall = (!no_more_dslot & !half_insn_done & (id_insn[31:26] != `OR1200_OR32_RFE) & (data_dependent | hazard_stall));
+assign dependency_hazard_stall = (!no_more_dslot & !id_voidc & !half_insn_done & (id_insn[31:26] != `OR1200_OR32_RFE) & (data_dependent | hazard_stall));
    
 //data dependency check of two insns in the same stage of pipeline   
 always @(*) begin
@@ -445,7 +445,8 @@ always @(*) begin
       id_illegal <= id_illegala;
       id_branch_op <= half_insn_done ? id_branch_op_next : id_branch_opa;
       // do not stall for rfe in the first stage but otherwise stall for structural hazard or 2nd stage ALU instructions that require a carry or flag
-      if ((id_lsu_opc != `OR1200_LSUOP_NOP) | (id_mac_opc != `OR1200_MACOP_NOP) | id_macrc_opc | (fpu_opc != {`OR1200_FPUOP_WIDTH{1'b0}}) | (wait_onc != `OR1200_WAIT_ON_NOTHING) | (multicyclec != `OR1200_ONE_CYCLE) | id_illegalc | du_hwbkpt | (id_insn[31:26] == `OR1200_OR32_XSYNC) | (id_insn[63:58] == `OR1200_OR32_XSYNC) | (id_branch_opc != `OR1200_BRANCHOP_NOP) | (id_insn[63:58] == `OR1200_OR32_ADDIC) | ((id_insn[63:58] == `OR1200_OR32_ALU) & ({1'b0, id_insn[35:32]} == `OR1200_ALUOP_CMOV)))
+      // stall for a branch regardless because an instruction in the second half of the pipeline could flip a flag that affects the execution of the first stage
+      if ((id_lsu_opc != `OR1200_LSUOP_NOP) | (id_mac_opc != `OR1200_MACOP_NOP) | id_macrc_opc | (fpu_opc != {`OR1200_FPUOP_WIDTH{1'b0}}) | (wait_onc != `OR1200_WAIT_ON_NOTHING) | (multicyclec != `OR1200_ONE_CYCLE) | id_illegalc | du_hwbkpt | (id_insn[31:26] == `OR1200_OR32_XSYNC) | (id_insn[63:58] == `OR1200_OR32_XSYNC) | (id_branch_opa != `OR1200_BRANCHOP_NOP) | (id_branch_opc != `OR1200_BRANCHOP_NOP) | (id_insn[63:58] == `OR1200_OR32_ADDIC) | ((id_insn[63:58] == `OR1200_OR32_ALU) & ({1'b0, id_insn[35:32]} == `OR1200_ALUOP_CMOV)))
 	hazard_stall <= 1'b1;
       else
 	hazard_stall <= 1'b0;
