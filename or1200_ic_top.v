@@ -248,7 +248,7 @@ always @(posedge clk or `OR1200_RST_EVENT rst)
 // Tag comparison
 //
 // During line invalidate, ensure it stays the same
-always @(tag or saved_addr or tag_v or from_icram or from_icram_upper_intermediate) begin
+always @(tag or saved_addr or tag_v or from_icram or from_icram_upper_intermediate or not_two_insn) begin
 	  if ((tag[`OR1200_ICTAG_W-2:0] != saved_addr[31:`OR1200_ICTAGL]) | !tag_v[0]) begin //modified for two different tags
 	     if_two_insns_intermediate <= 1'b0;
 	     tagcomp_miss <= 1'b1;

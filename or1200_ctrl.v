@@ -601,6 +601,7 @@ always @(*) begin
    end 
    else begin
       ex_branch_op <= `OR1200_BRANCHOP_NOP;
+      ex_branch_addrtarget <= 0;
       dc_no_writethrough <= 1'b0;
       spr_read <= 1'b0;
       spr_write <= 1'b0;
