@@ -741,7 +741,7 @@ assign flagforwa = (flag_we_alu & flagforw_alu) | (flagforw_fpu & flag_we_fpu);
 
 //second write dominates if second ALU instruction is valid
 assign flagforw = flag_we_aluc ? flagforw_aluc : (flag_we_alu & flagforw_alu) | (flagforw_fpu & flag_we_fpu);  
-assign flag_we = (flag_we_alu | flag_we_fpu | flag_we_aluc) & ~abort_mvspr; 
+assign flag_we = (flag_we_alu | flag_we_fpu | (flag_we_aluc & !ex_freeze)) & ~abort_mvspr; 
 assign ovforw = ov_we_aluc ? ovforwc : ovforwa;
 assign ov_we_alu = ov_we_alua | ov_we_aluc;
 assign cyforw = cy_we_aluc ? cyforwc : cyforwa;
