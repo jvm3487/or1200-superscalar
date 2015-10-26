@@ -64,7 +64,7 @@ module or1200_spram_modified64
    mbist_si_i, mbist_so_o, mbist_ctrl_i,
 `endif
    // Generic synchronous single-port RAM interface
-   clk, ce, we, addr, di, doq
+   clk, ce, we, addr, di, doq, two_insn_ram
    );
    
    //
@@ -92,6 +92,7 @@ module or1200_spram_modified64
    input [aw-1:0] 			  addr;	// address bus inputs
    input [(dw/4)-1:0] 			  di;	// input data bus - modified to 31 because size in size is now different than data size
    output [(dw/2)-1:0] 			  doq;	// output data bus - changed to dw from dw/2 after test
+   output 				  two_insn_ram;
    
    //
    // Internal wires and registers
@@ -111,7 +112,7 @@ module or1200_spram_modified64
 `endif
    reg [aw-1:0] 			  addr_reg;		// RAM address register
    reg [(dw/2)-1:0] 			  doq_intermediate; //changed to dw from dw/2 after test
-   
+   reg 					  two_insn_ram;					  
    
    //
    // Data output drivers
@@ -122,18 +123,24 @@ module or1200_spram_modified64
    // It was then modified to make it 128 bits wide
    assign doq = doq_intermediate; 
    
-   
    always @(*) begin
       case ({addr_reg[1], addr_reg[0]})
-	{2'b00}:
-	  doq_intermediate <= mem[addr_reg[aw-1:2]][(dw/2)-1:0];
-	{2'b01}:
-	  doq_intermediate <= mem[addr_reg[aw-1:2]][((3*dw)/4)-1:dw/4];
-	{2'b10}:
-	  doq_intermediate <= mem[addr_reg[aw-1:2]][dw-1:dw/2];
+	{2'b00}: begin 
+	   doq_intermediate <= mem[addr_reg[aw-1:2]][(dw/2)-1:0];
+	   two_insn_ram <= 1'b1;
+	end
+	{2'b01}: begin
+	   doq_intermediate <= mem[addr_reg[aw-1:2]][((3*dw)/4)-1:dw/4];
+	   two_insn_ram <= 1'b1;
+	end
+	{2'b10}: begin
+	   doq_intermediate <= mem[addr_reg[aw-1:2]][dw-1:dw/2];
+	   two_insn_ram <= 1'b1;
+	end
 	{2'b11}: begin
-	   doq_intermediate[(dw/2)-1:dw/4] <= {32{1'b0}};
+	   doq_intermediate[(dw/2)-1:dw/4] <= {`OR1200_OR32_NOP, 26'h141_0000};
 	   doq_intermediate[(dw/4)-1:0] <= mem[addr_reg[aw-1:2]][dw-1:(3*dw)/4];
+	   two_insn_ram <= 1'b0;
 	end
 	
       endcase // case ({addr_reg[1], addr_reg[0]})

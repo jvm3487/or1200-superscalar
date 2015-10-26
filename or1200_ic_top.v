@@ -165,7 +165,8 @@ reg 				ic_inv_q;
 reg  [(dw-1):0]			from_icram_upper_intermediate;
 reg 				if_two_insns_intermediate; 				
 wire    			not_two_insn;
- 				
+wire    			two_insn_ram;
+ 	 				
 `ifdef OR1200_BIST
 //
 // RAM BIST
@@ -248,7 +249,7 @@ always @(posedge clk or `OR1200_RST_EVENT rst)
 // Tag comparison
 //
 // During line invalidate, ensure it stays the same
-always @(tag or saved_addr or tag_v or from_icram or from_icram_upper_intermediate or not_two_insn) begin
+always @(tag or saved_addr or tag_v or from_icram or from_icram_upper_intermediate or not_two_insn or two_insn_ram) begin
 	  if ((tag[`OR1200_ICTAG_W-2:0] != saved_addr[31:`OR1200_ICTAGL]) | !tag_v[0]) begin //modified for two different tags
 	     if_two_insns_intermediate <= 1'b0;
 	     tagcomp_miss <= 1'b1;
@@ -257,7 +258,7 @@ always @(tag or saved_addr or tag_v or from_icram or from_icram_upper_intermedia
 	  end
 	  else begin
 	     tagcomp_miss <= 1'b0;
-	     if (not_two_insn | (from_icram[(dw*2)-1:dw] == 32'b0)) begin //not_two_insn added to keep pipeline from running ahead of fetch
+	     if (not_two_insn | !two_insn_ram | from_icram[31:26] == `OR1200_OR32_RFE) begin //not_two_insn added to keep pipeline from running ahead of fetch
 	       if_two_insns_intermediate <= 1'b0;
 	       from_icram_upper_intermediate <= {`OR1200_OR32_NOP, 26'h141_0000}; //nop added for two insns 141
 	     end
@@ -308,7 +309,8 @@ or1200_ic_ram or1200_ic_ram(
 	.en(ic_en),
 	.we(icram_we),
 	.datain(to_icram),
-	.dataout(from_icram)
+	.dataout(from_icram),
+	.two_insn_ram(two_insn_ram)
 );
     
 //

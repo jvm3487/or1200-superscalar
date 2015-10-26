@@ -64,7 +64,7 @@ module or1200_ic_ram(
 `endif
 
 	// Internal i/f
-	addr, en, we, datain, dataout
+	addr, en, we, datain, dataout, two_insn_ram
 );
 
 parameter dw = `OR1200_OPERAND_WIDTH;
@@ -80,7 +80,8 @@ input				en;
 input	[3:0]			we;
 input	[dw-1:0]		datain;
 output	[(dw*2)-1:0]		dataout; //modified to be twice as wide
-
+output  			two_insn_ram;
+   
 `ifdef OR1200_BIST
 //
 // RAM BIST
@@ -124,7 +125,8 @@ assign mbist_so_o = mbist_si_i;
       //.oe(1'b1),
       .addr(addr),
       .di(datain),
-      .doq(dataout)
+      .doq(dataout),
+      .two_insn_ram(two_insn_ram)
       );   
 `endif
 

@@ -135,7 +135,7 @@ reg				wait_lsu;
    //
    // Control access to IC subsystem
    //
-   assign icpu_cycstb_o = ~(genpc_freeze | ((|pre_branch_op & !no_more_dslot)  & !icpu_rty_i) | wait_lsu); //adjusted now that a branch can follow a branch
+   assign icpu_cycstb_o =  ~(genpc_freeze | (|pre_branch_op && !icpu_rty_i) | wait_lsu);
    assign icpu_sel_o = 4'b1111;
    assign icpu_tag_o = `OR1200_ITAG_NI;
 
@@ -145,9 +145,9 @@ reg				wait_lsu;
    always @(posedge clk or `OR1200_RST_EVENT rst)
      if (rst == `OR1200_RST_VALUE)
        wait_lsu <=  1'b0;
-     else if (!wait_lsu & (|pre_branch_op & !no_more_dslot) & lsu_stall)
+     else if (!wait_lsu & |pre_branch_op & lsu_stall)
        wait_lsu <=  1'b1;
-     else if (wait_lsu & !lsu_stall) /*& (~|pre_branch_op | no_more_dslot))*/
+     else if (wait_lsu & ~|pre_branch_op)
        wait_lsu <=  1'b0;
 
    //
