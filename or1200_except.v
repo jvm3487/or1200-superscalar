@@ -423,10 +423,7 @@ always @(posedge clk or `OR1200_RST_EVENT rst) begin
 	else if (!ex_freeze & id_freeze) begin
 	   ex_dslot <=  1'b0;
 	   same_stage_dslot_next <= 1'b0;
-	   if (!half_insn_done)
-	     ex_pc <=  id_pc;
-	   else
-	     ex_pc <= (ex_pc + 32'h4);
+	        ex_pc <=  id_pc;
                 ex_pc_val <=  id_pc_val ;
 		ex_exceptflags <=  3'b000;
 		delayed1_ex_dslot <=  ex_dslot;
@@ -435,12 +432,9 @@ always @(posedge clk or `OR1200_RST_EVENT rst) begin
 	else if (!ex_freeze) begin
 	   ex_dslot <=  ex_branch_taken;
 	   same_stage_dslot_next <= same_stage_dslot;
-	   if (!half_insn_done)
-	     ex_pc <=  id_pc;
-	   else
-	     ex_pc <= (ex_pc + 32'h4);
+	        ex_pc <=  id_pc;
                 ex_pc_val <=  id_pc_val ;
-		ex_exceptflags <=  same_stage_dslot ? 3'b0 : id_exceptflags;
+		ex_exceptflags <= id_exceptflags;
 		delayed1_ex_dslot <=  ex_dslot;
 		delayed2_ex_dslot <=  delayed1_ex_dslot;
 	end

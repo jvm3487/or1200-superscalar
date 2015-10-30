@@ -613,7 +613,7 @@ end
    
 always@(*) begin   
    //This is needed for the case that a NOP is inserted partway through the pipeline due to a stall
-   if (ex_insn[63:58] != `OR1200_OR32_NOP) begin   
+   if (ex_insn[63:58] != `OR1200_OR32_NOP | !ex_insn[48]) begin   
       alu_opc_out <= alu_opc;
       rfwb_op2 <= rfwb_opc;
       ex_two_insns <= 1'b1;      
