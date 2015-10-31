@@ -169,7 +169,7 @@ module or1200_monitor;
  `ifdef OR1200_MONITOR_LOOKUP
 	 $fdisplay(flookup, "Instruction %d: %t", insns, $time);
  `endif
-	 if ((`OR1200_TOP.`CPU_cpu.`CPU_ctrl.wb_insn[31:26] != `OR1200_OR32_NOP) | (`OR1200_TOP.`CPU_cpu.`CPU_ctrl.wb_insn[16]== 1'b0)) begin
+	 if ((`OR1200_TOP.`CPU_cpu.`CPU_ctrl.wb_insn[31:26] != `OR1200_OR32_NOP) | (`OR1200_TOP.`CPU_cpu.`CPU_ctrl.wb_insn[16]== 1'b0) | exception) begin
 	    if(exception)
 	      $fwrite(fexe, "\nEXECUTED(%d): %h:  %h  (exception)", insns,
 		      `OR1200_TOP.`CPU_cpu.`CPU_except.ex_pc,

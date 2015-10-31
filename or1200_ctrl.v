@@ -393,7 +393,7 @@ assign dependency_hazard_stall = (!no_more_dslot & !id_voidc & !half_insn_done &
    
 //data dependency check of two insns in the same stage of pipeline   
 always @(*) begin
-   if (((id_insn[31:26] == `OR1200_OR32_JAL) | (id_insn[31:26] == `OR1200_OR32_JALR)) & ((id_insn[52:48] == 5'd9) | ((id_insn[47:43] == 5'd9) & !sel_immc)) & (id_insn[63:58] != `OR1200_OR32_NOP)) begin //dslot logic needed to keep from stalling for no reason
+   if (((id_insn[31:26] == `OR1200_OR32_JAL) | (id_insn[31:26] == `OR1200_OR32_JALR)) & ((id_insn[52:48] == 5'd9) | ((id_insn[47:43] == 5'd9) & !sel_immc)) & (id_insn[63:58] != `OR1200_OR32_NOP | !id_insn[48])) begin //dslot logic needed to keep from stalling for no reason
       data_dependent <= 1'b1;
    end
    else if (((id_insn[25:21] == id_insn[52:48]) | ((id_insn[25:21] == id_insn[47:43]) & !sel_immc)) & (id_insn[63:58] != `OR1200_OR32_NOP)) begin //dslot logic needed to keep from stalling for no reason
@@ -587,7 +587,7 @@ always @(*) begin
    alu_op2 <= alu_op2a;
    comp_op <= comp_opa;
    //This is needed in case a NOP is inserted partway through the pipeline
-   if (ex_insn[31:26] != `OR1200_OR32_NOP) begin
+   if (ex_insn[31:26] != `OR1200_OR32_NOP | !ex_insn[16]) begin
       ex_branch_op <= ex_branch_opa;
       ex_branch_addrtarget <= ex_branch_addrtargeta;
       dc_no_writethrough <= dc_no_writethrougha;
