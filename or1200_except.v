@@ -236,7 +236,7 @@ assign abort_mvspr  = sig_illegala | sig_illegalc | ((du_hwbkpt | trace_trap) & 
 				     & !sr_ted & !dsr_te) ; 
 assign spr_dat_ppc = ex_two_insns_next ? (wb_pc + 32'h4) : wb_pc;   
    
-assign spr_dat_npc = ex_void ? id_pc : ex_two_insns ? (ex_pc + 32'h4) : ex_pc;
+assign spr_dat_npc = ex_void ? id_pc : ex_pc;
 
 //
 // Order defines exception detection priority
@@ -363,7 +363,7 @@ always @(posedge clk or `OR1200_RST_EVENT rst) begin
 	else if (!id_freeze) begin
 		id_pc <=  dependency_hazard_stall ? (id_pc + 32'h4) : if_pc;
         id_pc_val <=  1'b1 ;
-		id_exceptflags <=  dependency_hazard_stall ? 3'b0 : { sig_ibuserr, sig_itlbmiss, sig_immufault };
+		id_exceptflags <=  dependency_hazard_stall ? 3'b000 : { sig_ibuserr, sig_itlbmiss, sig_immufault };
 	end
 end
 

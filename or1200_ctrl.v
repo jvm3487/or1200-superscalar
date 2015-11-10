@@ -423,7 +423,8 @@ always @(*) begin
 end
    
 //structural hazard check for LSU, multiplication, fpu, insn that take longer than a cycle, illegal instructions, and system stalls
-always @(*) begin   
+always @(*) begin
+   //hazard_stall <= 1'b1;
    if (same_stage_dslot) begin
       hazard_stall <= 1'b0;
       id_lsu_op <= `OR1200_LSUOP_NOP;
@@ -443,7 +444,7 @@ always @(*) begin
       wait_on <= wait_ona;
       multicycle <= multicyclea;
       id_illegal <= id_illegala;
-      id_branch_op <= half_insn_done ? id_branch_op_next : id_branch_opa;
+      id_branch_op <= /*half_insn_done ? id_branch_op_next :*/ id_branch_opa;
       // stall for a branch regardless because an instruction in the second half of the pipeline could flip a flag that affects the execution of the first stage
       if ((id_lsu_opc != `OR1200_LSUOP_NOP) | (id_mac_opc != `OR1200_MACOP_NOP) | id_macrc_opc | (fpu_opc != {`OR1200_FPUOP_WIDTH{1'b0}}) | (wait_onc != `OR1200_WAIT_ON_NOTHING) | (multicyclec != `OR1200_ONE_CYCLE) | id_illegalc | du_hwbkpt | (id_insn[31:26] == `OR1200_OR32_XSYNC) | (id_insn[63:58] == `OR1200_OR32_XSYNC) | (id_branch_opa != `OR1200_BRANCHOP_NOP) | (id_branch_opc != `OR1200_BRANCHOP_NOP) | (id_insn[63:58] == `OR1200_OR32_ADDIC) | ((id_insn[63:58] == `OR1200_OR32_ALU) & ({1'b0, id_insn[35:32]} == `OR1200_ALUOP_CMOV)))
 	hazard_stall <= 1'b1;
@@ -639,10 +640,10 @@ or1200_ctrl_id_decode or1200_ctrl_id_decode1(
 	.ex_freeze(ex_freeze),
 	.id_freeze(id_freeze),
 	.ex_flushpipe(ex_flushpipe),			     
-	.id_pc(half_insn_done ? id_pc_next : id_pc),
+	.id_pc(/*half_insn_done ? id_pc_next :*/ id_pc),
         .du_hwbkpt(du_hwbkpt),
 	.abort_mvspr(abort_mvspr),
-	.sel_imm(half_insn_done ? sel_imm_next : sel_imma), // executing stalled instruction so need to get the right immediate	     
+	.sel_imm(/*half_insn_done ? sel_imm_next :*/ sel_imma), // executing stalled instruction so need to get the right immediate	     
 	.rf_addrw1(rf_addrw),
 	.rf_addrw2(rf_addrw2),
 	.rfwb_op1(rfwb_op),
@@ -651,7 +652,7 @@ or1200_ctrl_id_decode or1200_ctrl_id_decode1(
 	.wb_rfaddrw2(wb_rfaddrw2),
 	.wbforw_valid1(wbforw_valid),
 	.wbforw_valid2(wbforw_valid2),
-        .id_branch_op(half_insn_done? id_branch_op_next : id_branch_opa),
+        .id_branch_op(/*half_insn_done? id_branch_op_next :*/ id_branch_opa),
 	.id_simm(id_simma),
 	.id_mac_op(id_mac_opa),				     
 	.id_macrc_op(id_macrc_opa),
@@ -733,7 +734,7 @@ or1200_ctrl_id_decode or1200_ctrl_id_decode2(
 or1200_ctrl_if_decode or1200_ctrl_if_decode1(
 	.clk(clk),
 	.rst(rst),
-	.if_insn(if_insn[31:0]),
+	.if_insn(dependency_hazard_stall ? id_insn[63:32] : if_insn[31:0]),
 	.id_freeze(id_freeze),
 	.id_flushpipe(id_flushpipe),
 	.rf_addr1(rf_addra),
@@ -747,7 +748,7 @@ or1200_ctrl_if_decode or1200_ctrl_if_decode1(
 or1200_ctrl_if_decode or1200_ctrl_if_decode2(
 	.clk(clk),
 	.rst(rst),
-	.if_insn(if_insn[63:32]), 
+	.if_insn(dependency_hazard_stall ? {`OR1200_OR32_NOP, 26'h141_0000} : if_insn[63:32]), 
 	.id_freeze(id_freeze),
 	.id_flushpipe(id_flushpipe),
 	.rf_addr1(rf_addrc),

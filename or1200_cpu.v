@@ -252,8 +252,8 @@ wire	[dw-1:0]		rf_dataw;
 wire	[dw-1:0]		rf_datawc;   
 wire	[dw-1:0]		rf_dataa;
 wire	[dw-1:0]		rf_datab;
-reg	[dw-1:0]		rf_dataa_inter;
-reg	[dw-1:0]		rf_datab_inter;   
+//reg	[dw-1:0]		rf_dataa_inter;
+//reg	[dw-1:0]		rf_datab_inter;   
 wire    [dw-1:0] 		rf_datac;
 wire    [dw-1:0] 		rf_datad;
 wire	[dw-1:0]		muxed_a;				
@@ -662,8 +662,8 @@ or1200_operandmuxes or1200_operandmuxes1(
 	.rst(rst),
 	.id_freeze(id_freeze),
 	.ex_freeze(ex_freeze),
-	.rf_dataa(rf_dataa_inter),
-	.rf_datab(rf_datab_inter),
+	.rf_dataa(rf_dataa /*rf_dataa_inter*/),
+	.rf_datab(rf_datab /*rf_datab_inter*/),
 	.ex_forw(rf_dataw),
 	.ex_forw2(rf_datawc),
 	.wb_forw(wb_forw),
@@ -678,7 +678,7 @@ or1200_operandmuxes or1200_operandmuxes1(
 );
 
 // id stage
-always @(*) begin
+/*always @(*) begin
    if (!half_insn_done) begin
       rf_dataa_inter <= rf_dataa;
       rf_datab_inter <= rf_datab;
@@ -687,7 +687,7 @@ always @(*) begin
       rf_dataa_inter <= operand_c;
       rf_datab_inter <= operand_d;
    end
-end
+end*/
    
 or1200_operandmuxes or1200_operandmuxes2(
 	.clk(clk),
