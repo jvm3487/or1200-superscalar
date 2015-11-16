@@ -115,7 +115,6 @@ reg	[31:0]		addr_saved;
 reg	[2:0]		err_saved;
 reg			saved;
 reg 			if_two_insns_saved;
-   
 	
 assign save_insn = (icpu_ack_i | icpu_err_i) & if_freeze & !saved; 
 assign saving_if_insn = !if_flushpipe & save_insn;
@@ -133,10 +132,10 @@ always @(posedge clk or `OR1200_RST_EVENT rst)
 //
 // IF stage insn
 //
-assign if_insn = no_more_dslot | rfe | if_bypass ? {2{`OR1200_OR32_NOP, 26'h041_0000}} : saved ? insn_saved : icpu_err_i & icpu_ack_i ? {`OR1200_OR32_NOP, 26'h141_0000, icpu_dat_i[31:0]} : icpu_ack_i ? icpu_dat_i : {2{`OR1200_OR32_NOP, 26'h061_0000}}; //161 is used for exceptions 
+assign if_insn = no_more_dslot | rfe | if_bypass ? {2{`OR1200_OR32_NOP, 26'h041_0000}} : saved ? insn_saved : icpu_ack_i ? icpu_dat_i : {2{`OR1200_OR32_NOP, 26'h061_0000}}; //161 is used for exceptions 
 //The following has been modified to take into account the possibility of two insns
 assign if_pc = saved ? addr_saved : {icpu_adr_i[31:2], 2'h0};
-assign if_two_insns = saved? if_two_insns_saved : icpu_err_i ? 1'b0: if_two_insns_ic;
+assign if_two_insns = saved? if_two_insns_saved : /*icpu_err_i ? 1'b0:*/ if_two_insns_ic;
    
 //it appears if_stall seems to almost mirror if_freeze
 //primary difference is that if if_freeze is high and an instruction is being saved, than if_stall will be low

@@ -63,7 +63,8 @@ module or1200_ctrl_id_decode
    input [31:0] 				id_pc;			
    input					du_hwbkpt;
    input 					abort_mvspr;		
-   input 					sel_imm;
+   output 					sel_imm;
+   reg 						sel_imm;
    input [`OR1200_REGFILE_ADDR_WIDTH-1:0] 	rf_addrw1;
    input [`OR1200_RFWBOP_WIDTH-1:0]		rfwb_op1;
    input [`OR1200_REGFILE_ADDR_WIDTH-1:0] 	rf_addrw2;
@@ -72,7 +73,8 @@ module or1200_ctrl_id_decode
    input 					wbforw_valid1;
    input [`OR1200_REGFILE_ADDR_WIDTH-1:0] 	wb_rfaddrw2;
    input 					wbforw_valid2;
-   input [`OR1200_BRANCHOP_WIDTH-1:0] 		id_branch_op;
+   output [`OR1200_BRANCHOP_WIDTH-1:0] 		id_branch_op;
+   reg [`OR1200_BRANCHOP_WIDTH-1:0] 		id_branch_op;
    output [31:0] 				id_simm;
    output [`OR1200_MACOP_WIDTH-1:0] 		id_mac_op;		
    output 					id_macrc_op;
@@ -824,6 +826,128 @@ always @(posedge clk or `OR1200_RST_EVENT rst) begin
 	end
 end
 
+   
+//
+// Decode of sel_imm
+//
+always @(*) begin
+	  case (id_insn[31:26])		// synopsys parallel_case
+
+	    // j.jalr
+	    `OR1200_OR32_JALR:
+	      sel_imm <=  1'b0;
+	    
+	    // l.jr
+	    `OR1200_OR32_JR:
+	      sel_imm <=  1'b0;
+	    
+	    // l.rfe
+	    `OR1200_OR32_RFE:
+	      sel_imm <=  1'b0;
+	    
+	    // l.mfspr
+	    `OR1200_OR32_MFSPR:
+	      sel_imm <=  1'b0;
+	    
+	    // l.mtspr
+	    `OR1200_OR32_MTSPR:
+	      sel_imm <=  1'b0;
+	    
+	    // l.sys, l.brk and all three sync insns
+	    `OR1200_OR32_XSYNC:
+	      sel_imm <=  1'b0;
+	    
+	    // l.mac/l.msb
+`ifdef OR1200_MAC_IMPLEMENTED
+	    `OR1200_OR32_MACMSB:
+	      sel_imm <=  1'b0;
+`endif
+
+	    // l.sw
+	    `OR1200_OR32_SW:
+	      sel_imm <=  1'b0;
+	    
+	    // l.sb
+	    `OR1200_OR32_SB:
+	      sel_imm <=  1'b0;
+	    
+	    // l.sh
+	    `OR1200_OR32_SH:
+	      sel_imm <=  1'b0;
+	    
+	    // ALU instructions except the one with immediate
+	    `OR1200_OR32_ALU:
+	      sel_imm <=  1'b0;
+	    
+	    // SFXX instructions
+	    `OR1200_OR32_SFXX:
+	      sel_imm <=  1'b0;
+
+`ifdef OR1200_IMPL_ALU_CUST5
+	    // l.cust5 instructions
+	    `OR1200_OR32_CUST5:
+	      sel_imm <=  1'b0;
+`endif
+`ifdef OR1200_FPU_IMPLEMENTED
+	    // FPU instructions
+	    `OR1200_OR32_FLOAT:
+	      sel_imm <=  1'b0;
+`endif
+	    // l.nop
+	    `OR1200_OR32_NOP:
+	      sel_imm <=  1'b0;
+
+	    // All instructions with immediates
+	    default: begin
+	      sel_imm <=  1'b1;
+	    end
+	    
+	  endcase
+	  
+	
+end
+
+//
+// Decode of id_branch_op
+//
+always @(*) begin
+		case (id_insn[31:26])		// synopsys parallel_case
+
+		// l.j
+		`OR1200_OR32_J:
+			id_branch_op <=  `OR1200_BRANCHOP_J;
+		  
+		// j.jal
+		`OR1200_OR32_JAL:
+			id_branch_op <=  `OR1200_BRANCHOP_J;
+		  
+		// j.jalr
+		`OR1200_OR32_JALR:
+			id_branch_op <=  `OR1200_BRANCHOP_JR;
+		  
+		// l.jr
+		`OR1200_OR32_JR:
+			id_branch_op <=  `OR1200_BRANCHOP_JR;
+		  
+		// l.bnf
+		`OR1200_OR32_BNF:
+			id_branch_op <=  `OR1200_BRANCHOP_BNF;
+		  
+		// l.bf
+		`OR1200_OR32_BF:
+			id_branch_op <=  `OR1200_BRANCHOP_BF;
+		  
+		// l.rfe
+		`OR1200_OR32_RFE:
+			id_branch_op <=  `OR1200_BRANCHOP_RFE;
+		  
+		// Non branch instructions
+		default:
+			id_branch_op <=  `OR1200_BRANCHOP_NOP;
+
+		endcase
+	
+end
 
 
    

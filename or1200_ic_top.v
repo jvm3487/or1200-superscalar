@@ -55,7 +55,7 @@
 //
 module or1200_ic_top(
 	// Rst, clk and clock control
-	clk, rst,
+	clk, rst, supv,
 
 	// External i/f
 	icbiu_dat_o, icbiu_adr_o, icbiu_cyc_o, icbiu_stb_o, icbiu_we_o, 
@@ -88,7 +88,8 @@ parameter dw = `OR1200_OPERAND_WIDTH;
 //
 input				clk;
 input				rst;
-
+input   			supv;
+   
 //
 // External I/F
 //
@@ -139,8 +140,8 @@ input	[31:0]			spr_dat_i;
 // Internal wires and regs
 //
 wire    [31:0] 			ictag_addr_next_insn;   
-wire	[1:0]			tag_v; //modified
-wire	[(`OR1200_ICTAG_W*2)-3:0]	tag; //modified
+wire				tag_v; //modified
+wire	[`OR1200_ICTAG_W-2:0]	tag; //modified
 wire	[dw-1:0]		to_icram;
 wire	[(dw*2)-1:0]		from_icram; //modified
 wire	[31:0]			saved_addr;
@@ -250,7 +251,7 @@ always @(posedge clk or `OR1200_RST_EVENT rst)
 //
 // During line invalidate, ensure it stays the same
 always @(tag or saved_addr or tag_v or from_icram or from_icram_upper_intermediate or not_two_insn or two_insn_ram) begin
-	  if ((tag[`OR1200_ICTAG_W-2:0] != saved_addr[31:`OR1200_ICTAGL]) | !tag_v[0]) begin //modified for two different tags
+	  if ((tag != saved_addr[31:`OR1200_ICTAGL]) | !tag_v) begin //modified for two different tags
 	     if_two_insns_intermediate <= 1'b0;
 	     tagcomp_miss <= 1'b1;
 	     from_icram_upper_intermediate <= {`OR1200_OR32_NOP, 26'h141_0000};
@@ -258,7 +259,7 @@ always @(tag or saved_addr or tag_v or from_icram or from_icram_upper_intermedia
 	  end
 	  else begin
 	     tagcomp_miss <= 1'b0;
-	     if (not_two_insn | !two_insn_ram | from_icram[31:26] == `OR1200_OR32_RFE) begin //not_two_insn added to keep pipeline from running ahead of fetch
+	     if (supv | not_two_insn | !two_insn_ram | from_icram[31:26] == `OR1200_OR32_RFE) begin //not_two_insn added to keep pipeline from running ahead of fetch
 	       if_two_insns_intermediate <= 1'b0;
 	       from_icram_upper_intermediate <= {`OR1200_OR32_NOP, 26'h141_0000}; //nop added for two insns 141
 	     end

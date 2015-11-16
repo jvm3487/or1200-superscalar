@@ -111,6 +111,7 @@ output				icpu_cycstb_o;
 output	[3:0]			icpu_sel_o;
 output	[3:0]			icpu_tag_o;
 input	[63:0]			icpu_dat_i; //modified for two insns
+wire	[63:0]			icpu_dat_i_inter; //for testing   
 input				icpu_ack_i;
 input				icpu_rty_i;
 input				icpu_err_i;
@@ -200,6 +201,7 @@ output	[dw-1:0]		spr_dat_npc;
 output	[31:0]			spr_cs;
 output				spr_we;
 input   			mtspr_dc_done;
+wire     			if_two_insns_ic_inter; //for testing
 input   			if_two_insns_ic;
    
 //
@@ -252,8 +254,8 @@ wire	[dw-1:0]		rf_dataw;
 wire	[dw-1:0]		rf_datawc;   
 wire	[dw-1:0]		rf_dataa;
 wire	[dw-1:0]		rf_datab;
-//reg	[dw-1:0]		rf_dataa_inter;
-//reg	[dw-1:0]		rf_datab_inter;   
+reg	[dw-1:0]		rf_dataa_inter;
+reg	[dw-1:0]		rf_datab_inter;   
 wire    [dw-1:0] 		rf_datac;
 wire    [dw-1:0] 		rf_datad;
 wire	[dw-1:0]		muxed_a;				
@@ -504,16 +506,20 @@ or1200_genpc #(.boot_adr(boot_adr)) or1200_genpc(
 	.dependency_hazard_stall(dependency_hazard_stall)		 
 );
 
+   //assign icpu_dat_i_inter = icpu_adr_i[21:20] == 2'b01 ? {`OR1200_OR32_NOP, 26'h141_0000, icpu_dat_i[31:0]} : icpu_dat_i;
+   //assign if_two_insns_ic_inter = icpu_adr_i[21:20] == 2'b01 ? 1'b0 : if_two_insns_ic;
+
+
 //
 // Instantiation of instruction fetch block
 //
 or1200_if or1200_if(
 	.clk(clk),
 	.rst(rst),
-	.icpu_dat_i(icpu_dat_i),
+	.icpu_dat_i(icpu_dat_i/*_inter*/), // for testing
 	.icpu_ack_i(icpu_ack_i),
 	.icpu_err_i(icpu_err_i),
-	.icpu_adr_i(icpu_adr_i),
+	.icpu_adr_i(icpu_adr_i), 
 	.icpu_tag_i(icpu_tag_i),
 	.if_freeze(if_freeze),
 	.if_insn(if_insn),
@@ -529,7 +535,7 @@ or1200_if or1200_if(
 	.except_ibuserr(except_ibuserr),
 	.dependency_hazard_stall(dependency_hazard_stall),
 	.same_stage_dslot(same_stage_dslot),
-	.if_two_insns_ic(if_two_insns_ic),
+	.if_two_insns_ic(if_two_insns_ic/*_inter*/), //for testing
 	.if_two_insns(if_two_insns)
 );
 //
@@ -662,8 +668,8 @@ or1200_operandmuxes or1200_operandmuxes1(
 	.rst(rst),
 	.id_freeze(id_freeze),
 	.ex_freeze(ex_freeze),
-	.rf_dataa(rf_dataa /*rf_dataa_inter*/),
-	.rf_datab(rf_datab /*rf_datab_inter*/),
+	.rf_dataa(/*rf_dataa*/ rf_dataa_inter),
+	.rf_datab(/*rf_datab*/ rf_datab_inter),
 	.ex_forw(rf_dataw),
 	.ex_forw2(rf_datawc),
 	.wb_forw(wb_forw),
@@ -678,7 +684,7 @@ or1200_operandmuxes or1200_operandmuxes1(
 );
 
 // id stage
-/*always @(*) begin
+always @(*) begin
    if (!half_insn_done) begin
       rf_dataa_inter <= rf_dataa;
       rf_datab_inter <= rf_datab;
@@ -687,7 +693,7 @@ or1200_operandmuxes or1200_operandmuxes1(
       rf_dataa_inter <= operand_c;
       rf_datab_inter <= operand_d;
    end
-end*/
+end
    
 or1200_operandmuxes or1200_operandmuxes2(
 	.clk(clk),

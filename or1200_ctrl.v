@@ -389,14 +389,14 @@ always @(posedge clk or `OR1200_RST_EVENT rst) begin
 end
 
 //Any type of hazard or dependency stall will stall the pipeline    
-assign dependency_hazard_stall = (!no_more_dslot & !id_voidc & !half_insn_done & (data_dependent | hazard_stall));
+assign dependency_hazard_stall = (!no_more_dslot & !id_voidc & (data_dependent | hazard_stall));
    
 //data dependency check of two insns in the same stage of pipeline   
 always @(*) begin
    if (((id_insn[31:26] == `OR1200_OR32_JAL) | (id_insn[31:26] == `OR1200_OR32_JALR)) & ((id_insn[52:48] == 5'd9) | ((id_insn[47:43] == 5'd9) & !sel_immc)) & (id_insn[63:58] != `OR1200_OR32_NOP | !id_insn[48])) begin //dslot logic needed to keep from stalling for no reason
       data_dependent <= 1'b1;
    end
-   else if (((id_insn[25:21] == id_insn[52:48]) | ((id_insn[25:21] == id_insn[47:43]) & !sel_immc)) & (id_insn[63:58] != `OR1200_OR32_NOP)) begin //dslot logic needed to keep from stalling for no reason
+   else if (((id_insn[25:21] == id_insn[52:48]) | ((id_insn[25:21] == id_insn[47:43]) & !sel_immc)) & (id_insn[63:58] != `OR1200_OR32_NOP | !id_insn[48])) begin //dslot logic needed to keep from stalling for no reason
       case (id_insn[31:26])
 	`OR1200_OR32_MOVHI, `OR1200_OR32_MFSPR, `OR1200_OR32_LWZ, `OR1200_OR32_LWS, `OR1200_OR32_LBZ, `OR1200_OR32_LBS,`OR1200_OR32_LHZ, `OR1200_OR32_LHS, `OR1200_OR32_ADDI, `OR1200_OR32_ADDIC, `OR1200_OR32_ANDI, `OR1200_OR32_ORI,
 `ifdef OR1200_MULT_IMPLEMENTED
@@ -461,7 +461,7 @@ always @(posedge clk or `OR1200_RST_EVENT rst) begin
 	   ex_insn <=  {2{`OR1200_OR32_NOP, 26'h141_0000}};
 	   half_insn_done <= 1'b0;
 	end
-	else if (ex_flushpipe | (!ex_freeze & abort_ex)) begin
+	else if (!ex_freeze & id_freeze | ex_flushpipe) begin
 	   ex_insn <=  {2{`OR1200_OR32_NOP, 26'h141_0000}};
 	   half_insn_done <= 1'b0;
 	end
@@ -569,7 +569,7 @@ always @(posedge clk or `OR1200_RST_EVENT rst) begin
   if (rst == `OR1200_RST_VALUE) begin
      ex_two_insns_next <= 1'b0;
   end
-  else if (id_flushpipe) begin
+  else if (ex_flushpipe) begin
      ex_two_insns_next <= 1'b0;
   end
    //These instructions are saved in the event of a stall and need to execute other instruction 
@@ -684,7 +684,7 @@ assign id_pc2 = {id_pc[31:2], 2'b0} + 32'h4;
    
 or1200_ctrl_id_decode or1200_ctrl_id_decode2(
 	.clk(clk),
-.rst(rst),
+	.rst(rst),
 	.id_insn(id_insn[63:32]),
 	.ex_freeze(ex_freeze),
 	.id_freeze(id_freeze),
@@ -734,29 +734,29 @@ or1200_ctrl_id_decode or1200_ctrl_id_decode2(
 or1200_ctrl_if_decode or1200_ctrl_if_decode1(
 	.clk(clk),
 	.rst(rst),
-	.if_insn(dependency_hazard_stall ? id_insn[63:32] : if_insn[31:0]),
+	.if_insn(if_insn[31:0]),
 	.id_freeze(id_freeze),
 	.id_flushpipe(id_flushpipe),
 	.rf_addr1(rf_addra),
 	.rf_addr2(rf_addrb),
 	.rf_rd1(rf_rda),
-	.rf_rd2(rf_rdb),
-	.sel_imm(sel_imma), //synchronous
-	.id_branch_op(id_branch_opa) //sync
+	.rf_rd2(rf_rdb)
+	//.sel_imm(sel_imma), //synchronous
+	//.id_branch_op(id_branch_opa) //sync
 );
 
 or1200_ctrl_if_decode or1200_ctrl_if_decode2(
 	.clk(clk),
 	.rst(rst),
-	.if_insn(dependency_hazard_stall ? {`OR1200_OR32_NOP, 26'h141_0000} : if_insn[63:32]), 
+	.if_insn(if_insn[63:32]), 
 	.id_freeze(id_freeze),
 	.id_flushpipe(id_flushpipe),
 	.rf_addr1(rf_addrc),
 	.rf_addr2(rf_addrd),
 	.rf_rd1(rf_rdc),
-	.rf_rd2(rf_rdd),
-	.sel_imm(sel_immc), //sync
-	.id_branch_op(id_branch_opc) //sync
+	.rf_rd2(rf_rdd)
+	//.sel_imm(sel_immc), //sync
+	//.id_branch_op(id_branch_opc) //sync
 );
 
    

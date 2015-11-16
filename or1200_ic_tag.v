@@ -93,12 +93,11 @@ output mbist_so_o;
 // Internal i/f
 //
 input	[aw-1:0]		addr;
-//input	[aw-1:0]		sec_read_addr;   
 input				en;
 input				we;
 input	[dw-1:0]		datain;
-output	[1:0]			tag_v; //modified twice as much
-output	[(dw*2)-3:0]		tag; // modified twice as much
+output				tag_v;
+output	[dw-2:0]		tag;
 
 `ifdef OR1200_NO_IC
 
@@ -113,13 +112,10 @@ assign mbist_so_o = mbist_si_i;
 
 `else
 
-   assign tag[(dw*2)-3:(dw-1)] = 1'b0;
-   assign tag_v[1] = 1'b0;
-   
 //
 // Instantiation of TAG RAM block
 //
-   or1200_spram_tag64 #
+   or1200_spram #
      (
       .aw(`OR1200_ICTAG),
       .dw(`OR1200_ICTAG_W)
@@ -137,9 +133,8 @@ assign mbist_so_o = mbist_si_i;
       .we(we),
       //.oe(1'b1),
       .addr(addr),
-      //.addr_nin(sec_read_addr),
       .di(datain),
-      .doq({tag[(dw-2):0], tag_v[0]}) 
+      .doq({tag, tag_v})
       );   
 `endif
 

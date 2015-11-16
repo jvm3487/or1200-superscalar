@@ -170,6 +170,7 @@ reg	[31:0]			epcr;
 reg	[31:0]			eear;
 reg	[`OR1200_SR_WIDTH-1:0]		esr;
 reg	[2:0]			id_exceptflags;
+reg	[2:0]			id_exceptflags_saved;
 reg	[2:0]			ex_exceptflags;
 reg	[`OR1200_EXCEPTFSM_WIDTH-1:0]	state;
 reg				extend_flush;
@@ -355,15 +356,18 @@ always @(posedge clk or `OR1200_RST_EVENT rst) begin
 		id_pc <=  32'd0;
         id_pc_val <=  1'b0 ;
 		id_exceptflags <=  3'b000;
+	   id_exceptflags_saved <= 3'b000;
 	end
 	else if (id_flushpipe) begin
         id_pc_val <=  1'b0 ;
 		id_exceptflags <=  3'b000;
+	   id_exceptflags_saved <= 3'b000;
 	end
 	else if (!id_freeze) begin
-		id_pc <=  dependency_hazard_stall ? (id_pc + 32'h4) : if_pc;
+	   id_exceptflags_saved <= id_exceptflags;
+	   id_pc <=  dependency_hazard_stall ? (id_pc + 32'h4) : if_pc;
         id_pc_val <=  1'b1 ;
-		id_exceptflags <=  dependency_hazard_stall ? 3'b000 : { sig_ibuserr, sig_itlbmiss, sig_immufault };
+		id_exceptflags <=  dependency_hazard_stall ? id_exceptflags_saved : { sig_ibuserr, sig_itlbmiss, sig_immufault };
 	end
 end
 

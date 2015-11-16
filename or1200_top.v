@@ -576,7 +576,8 @@ or1200_immu_top(
 or1200_ic_top or1200_ic_top(
 	.clk(clk_i),
 	.rst(rst_i),
-
+	.supv(supv), // added to try and only fetch two when supv bit is on
+			    
 `ifdef OR1200_BIST
 	// RAM BIST
 	.mbist_si_i(mbist_ic_si),
