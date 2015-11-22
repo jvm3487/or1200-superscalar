@@ -506,8 +506,8 @@ or1200_genpc #(.boot_adr(boot_adr)) or1200_genpc(
 	.dependency_hazard_stall(dependency_hazard_stall)		 
 );
 
-   //assign icpu_dat_i_inter = icpu_adr_i[21:20] == 2'b01 ? {`OR1200_OR32_NOP, 26'h141_0000, icpu_dat_i[31:0]} : icpu_dat_i;
-   //assign if_two_insns_ic_inter = icpu_adr_i[21:20] == 2'b01 ? 1'b0 : if_two_insns_ic;
+   //assign icpu_dat_i_inter = icpu_adr_i[31:30] == 2'b11 ? {`OR1200_OR32_NOP, 26'h141_0000, icpu_dat_i[31:0]} : icpu_dat_i;
+   //assign if_two_insns_ic_inter = icpu_adr_i[31:30] == 2'b11 ? 1'b0 : if_two_insns_ic;
 
 
 //
@@ -1092,6 +1092,7 @@ or1200_except or1200_except(
 	.ex_two_insns_next(ex_two_insns_next),
 	.half_insn_done(half_insn_done),
 	.same_stage_dslot(same_stage_dslot),
+	.no_more_dslot(no_more_dslot),
 	.dependency_hazard_stall(dependency_hazard_stall)
 );
 

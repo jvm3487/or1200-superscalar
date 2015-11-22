@@ -79,7 +79,7 @@ module or1200_except
    spr_dat_npc, datain, du_dsr, epcr_we, eear_we, esr_we, pc_we, epcr, eear, 
    du_dmr1, du_hwbkpt, du_hwbkpt_ls_r, esr, sr_we, to_sr, sr, lsu_addr, 
    abort_ex, icpu_ack_i, icpu_err_i, dcpu_ack_i, dcpu_err_i, sig_fp, fpcsr_fpee,
-   dsx, ex_two_insns, ex_two_insns_next, half_insn_done, same_stage_dslot, dependency_hazard_stall
+   dsx, ex_two_insns, ex_two_insns_next, half_insn_done, same_stage_dslot, dependency_hazard_stall, no_more_dslot
    
 );
 
@@ -155,6 +155,7 @@ input   			ex_two_insns;
 input 	         		ex_two_insns_next;
 input 	         		half_insn_done;
 input    			same_stage_dslot;			
+input   			no_more_dslot;
    
 //
 // Internal regs and wires
@@ -170,7 +171,7 @@ reg	[31:0]			epcr;
 reg	[31:0]			eear;
 reg	[`OR1200_SR_WIDTH-1:0]		esr;
 reg	[2:0]			id_exceptflags;
-reg	[2:0]			id_exceptflags_saved;
+reg	[2:0]			if_exceptflags_saved;
 reg	[2:0]			ex_exceptflags;
 reg	[`OR1200_EXCEPTFSM_WIDTH-1:0]	state;
 reg				extend_flush;
@@ -228,12 +229,12 @@ assign range_pending = 0;
 `endif   
    
 // Abort write into RF by load & other instructions   
-assign abort_ex = sig_dbuserr | sig_dmmufault | sig_dtlbmiss | sig_align | 
+assign abort_ex = |ex_exceptflags | sig_dbuserr | sig_dmmufault | sig_dtlbmiss | sig_align | 
 		  sig_illegala | sig_illegalc | ((du_hwbkpt | trace_trap) & ex_pc_val 
 				 & !sr_ted & !dsr_te);
 
 // abort spr read/writes   
-assign abort_mvspr  = sig_illegala | sig_illegalc | ((du_hwbkpt | trace_trap) & ex_pc_val 
+assign abort_mvspr  = |ex_exceptflags | sig_illegala | sig_illegalc | ((du_hwbkpt | trace_trap) & ex_pc_val 
 				     & !sr_ted & !dsr_te) ; 
 assign spr_dat_ppc = ex_two_insns_next ? (wb_pc + 32'h4) : wb_pc;   
    
@@ -356,18 +357,18 @@ always @(posedge clk or `OR1200_RST_EVENT rst) begin
 		id_pc <=  32'd0;
         id_pc_val <=  1'b0 ;
 		id_exceptflags <=  3'b000;
-	   id_exceptflags_saved <= 3'b000;
+	   if_exceptflags_saved <= 3'b000;
 	end
 	else if (id_flushpipe) begin
         id_pc_val <=  1'b0 ;
 		id_exceptflags <=  3'b000;
-	   id_exceptflags_saved <= 3'b000;
+	   if_exceptflags_saved <= 3'b000;
 	end
 	else if (!id_freeze) begin
-	   id_exceptflags_saved <= id_exceptflags;
+	   if_exceptflags_saved <=  { sig_ibuserr, sig_itlbmiss, sig_immufault };  // used to record the error in if stage if it has to wait for two stages due to dependency_hazard_stall
 	   id_pc <=  dependency_hazard_stall ? (id_pc + 32'h4) : if_pc;
         id_pc_val <=  1'b1 ;
-		id_exceptflags <=  dependency_hazard_stall ? id_exceptflags_saved : { sig_ibuserr, sig_itlbmiss, sig_immufault };
+		id_exceptflags <=  no_more_dslot | dependency_hazard_stall ? 3'b000 : half_insn_done ? if_exceptflags_saved : { sig_ibuserr, sig_itlbmiss, sig_immufault };
 	end
 end
 

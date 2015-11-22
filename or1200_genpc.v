@@ -129,7 +129,7 @@ reg				wait_lsu;
    // Address of insn to be fecthed
    //
    assign icpu_adr_o = !no_more_dslot & !except_start & !spr_pc_we 
-		       & (icpu_rty_i | genpc_refetch) ? 
+		       & (dependency_hazard_stall | icpu_rty_i | genpc_refetch) ? 
 		       icpu_adr_i : {pc[31:2], 1'b0, ex_branch_taken|spr_pc_we};
 
    //
@@ -167,21 +167,21 @@ reg				wait_lsu;
    //
    always @(pcreg or ex_branch_addrtarget or flag or branch_op or except_type
 	    or except_start or operand_b or epcr or spr_pc_we or spr_dat_i or 
-	    except_prefix or if_two_insns or dependency_hazard_stall) 
+	    except_prefix or if_two_insns) 
      begin
 	casez ({spr_pc_we, except_start, branch_op}) // synopsys parallel_case
 	  {2'b00, `OR1200_BRANCHOP_NOP}: begin
-	     if (!dependency_hazard_stall) begin
+	     //if (!dependency_hazard_stall) begin
 		if (!if_two_insns) begin
 		   pc = {pcreg + 30'd1, 2'b0};
 		end
 		else begin
 		   pc = {pcreg + 30'd2, 2'b0};
 		end
-	     end
+	     /*end
 	     else begin
 		pc = {pcreg, 2'b0};
-	     end
+	     end*/
 	     ex_branch_taken = 1'b0;
 	  end
 	  {2'b00, `OR1200_BRANCHOP_J}: begin
@@ -222,17 +222,17 @@ reg				wait_lsu;
 	       // synopsys translate_on
 `endif
 	       //pc = {pcreg + 30'd1, 2'b0};
-	       if (!dependency_hazard_stall) begin
+	       //if (!dependency_hazard_stall) begin
 		  if (!if_two_insns) begin
 		     pc = {pcreg + 30'd1, 2'b0};
 		  end
 		  else begin
 		     pc = {pcreg + 30'd2, 2'b0};
 		  end
-	       end
+	       /*end
 	       else begin
 		  pc = {pcreg, 2'b0};
-	       end
+	       end*/
 	       ex_branch_taken = 1'b0;
 	    end
 	  {2'b00, `OR1200_BRANCHOP_BNF}:
@@ -243,17 +243,17 @@ reg				wait_lsu;
 	       // synopsys translate_on
 `endif
 	       //pc = {pcreg + 30'd1, 2'b0};
-	       if (!dependency_hazard_stall) begin
+	       //if (!dependency_hazard_stall) begin
 		  if (!if_two_insns) begin
 		     pc = {pcreg + 30'd1, 2'b0};
 		  end
 		  else begin
 		     pc = {pcreg + 30'd2, 2'b0};
 		  end
-	       end
+	       /*end
 	       else begin
 		  pc = {pcreg, 2'b0};
-	       end
+	       end*/
 	       ex_branch_taken = 1'b0;
 	    end
 	    else begin
@@ -329,7 +329,7 @@ reg				wait_lsu;
    //not sure if no_more_dslot is necessary in the below logic
    //in the above icpu_adr_o address calculation (no_more_dslot seems to be high for all branch operations) - this causes if_bypass to go high in the if.v file iff if_bypass_reg or if_flushpipe is also high
    //commenting the signal out still causes the processor to pass all tests in simulation so more than likely this is unnecessary
-     else if (no_more_dslot | except_start | !genpc_freeze & !icpu_rty_i & !genpc_refetch) begin
+     else if (no_more_dslot | except_start | !genpc_freeze & !dependency_hazard_stall & !icpu_rty_i & !genpc_refetch) begin
 	pcreg_default <=  pc[31:2];
      end
 

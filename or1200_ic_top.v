@@ -259,7 +259,7 @@ always @(tag or saved_addr or tag_v or from_icram or from_icram_upper_intermedia
 	  end
 	  else begin
 	     tagcomp_miss <= 1'b0;
-	     if (supv | not_two_insn | !two_insn_ram | from_icram[31:26] == `OR1200_OR32_RFE) begin //not_two_insn added to keep pipeline from running ahead of fetch
+	     if (not_two_insn | !two_insn_ram | from_icram[31:26] == `OR1200_OR32_RFE | from_icram[63:58] == `OR1200_OR32_RFE) begin //not_two_insn added to keep pipeline from running ahead of fetch
 	       if_two_insns_intermediate <= 1'b0;
 	       from_icram_upper_intermediate <= {`OR1200_OR32_NOP, 26'h141_0000}; //nop added for two insns 141
 	     end
