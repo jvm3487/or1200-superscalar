@@ -167,7 +167,8 @@ reg  [(dw-1):0]			from_icram_upper_intermediate;
 reg 				if_two_insns_intermediate; 				
 wire    			not_two_insn;
 wire    			two_insn_ram;
- 	 				
+wire    			branch_op_fetch;
+   			
 `ifdef OR1200_BIST
 //
 // RAM BIST
@@ -245,12 +246,14 @@ always @(posedge clk or `OR1200_RST_EVENT rst)
    else
      ic_inv_q <= ic_inv;
    
+
+assign branch_op_fetch = from_icram[31:26] == `OR1200_OR32_J | from_icram[31:26] == `OR1200_OR32_JAL | from_icram[31:26] == `OR1200_OR32_BNF | from_icram[31:26] == `OR1200_OR32_BF | from_icram[31:26] == `OR1200_OR32_JR | from_icram[31:26] == `OR1200_OR32_JALR | from_icram[31:26] == `OR1200_OR32_RFE | from_icram[63:58] == `OR1200_OR32_J | from_icram[63:58] == `OR1200_OR32_JAL | from_icram[63:58] == `OR1200_OR32_BNF | from_icram[63:58] == `OR1200_OR32_BF | from_icram[63:58] == `OR1200_OR32_JR | from_icram[63:58] == `OR1200_OR32_JALR | from_icram[63:58] == `OR1200_OR32_RFE;   
    
 //
 // Tag comparison
 //
 // During line invalidate, ensure it stays the same
-always @(tag or saved_addr or tag_v or from_icram or from_icram_upper_intermediate or not_two_insn or two_insn_ram) begin
+always @(tag or saved_addr or tag_v or from_icram or from_icram_upper_intermediate or not_two_insn or two_insn_ram or branch_op_fetch) begin
 	  if ((tag != saved_addr[31:`OR1200_ICTAGL]) | !tag_v) begin //modified for two different tags
 	     if_two_insns_intermediate <= 1'b0;
 	     tagcomp_miss <= 1'b1;
@@ -259,7 +262,7 @@ always @(tag or saved_addr or tag_v or from_icram or from_icram_upper_intermedia
 	  end
 	  else begin
 	     tagcomp_miss <= 1'b0;
-	     if (not_two_insn | !two_insn_ram | from_icram[31:26] == `OR1200_OR32_RFE | from_icram[63:58] == `OR1200_OR32_RFE) begin //not_two_insn added to keep pipeline from running ahead of fetch
+	     if (not_two_insn | !two_insn_ram | branch_op_fetch) begin //not_two_insn added to keep pipeline from running ahead of fetch
 	       if_two_insns_intermediate <= 1'b0;
 	       from_icram_upper_intermediate <= {`OR1200_OR32_NOP, 26'h141_0000}; //nop added for two insns 141
 	     end

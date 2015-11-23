@@ -389,7 +389,7 @@ always @(posedge clk or `OR1200_RST_EVENT rst) begin
 end
 
 //Any type of hazard or dependency stall will stall the pipeline    
-assign dependency_hazard_stall = (!no_more_dslot & !id_voidc & (data_dependent | hazard_stall | id_insn[63:58] != `OR1200_OR32_NOP | !id_insn[48]));
+assign dependency_hazard_stall = (!no_more_dslot & !id_voidc & (data_dependent | hazard_stall));
    
 //data dependency check of two insns in the same stage of pipeline   
 always @(*) begin
