@@ -506,8 +506,8 @@ or1200_genpc #(.boot_adr(boot_adr)) or1200_genpc(
 	.dependency_hazard_stall(dependency_hazard_stall)		 
 );
 
-   assign icpu_dat_i_inter = icpu_adr_i[19:16] == 4'b0011 ? {`OR1200_OR32_NOP, 26'h141_0000, icpu_dat_i[31:0]} : icpu_dat_i;
-   assign if_two_insns_ic_inter = icpu_adr_i[19:16] == 4'b0011 ? 1'b0 : if_two_insns_ic;
+   //assign icpu_dat_i_inter = icpu_adr_i[19:16] == 4'b0011 ? {`OR1200_OR32_NOP, 26'h141_0000, icpu_dat_i[31:0]} : icpu_dat_i;
+   //assign if_two_insns_ic_inter = icpu_adr_i[19:16] == 4'b0011 ? 1'b0 : if_two_insns_ic;
 
 
 //
@@ -516,7 +516,7 @@ or1200_genpc #(.boot_adr(boot_adr)) or1200_genpc(
 or1200_if or1200_if(
 	.clk(clk),
 	.rst(rst),
-	.icpu_dat_i(icpu_dat_i_inter), // for testing
+	.icpu_dat_i(icpu_dat_i/*_inter*/), // for testing
 	.icpu_ack_i(icpu_ack_i),
 	.icpu_err_i(icpu_err_i),
 	.icpu_adr_i(icpu_adr_i), 
@@ -535,7 +535,7 @@ or1200_if or1200_if(
 	.except_ibuserr(except_ibuserr),
 	.dependency_hazard_stall(dependency_hazard_stall),
 	.same_stage_dslot(same_stage_dslot),
-	.if_two_insns_ic(if_two_insns_ic_inter), //for testing
+	.if_two_insns_ic(if_two_insns_ic/*_inter*/), //for testing
 	.if_two_insns(if_two_insns)
 );
 //
